@@ -1,0 +1,5 @@
+phone,date,type,amount,note
+9876543210,2026-10-20,SALE,1450,Morning market
+9876543210,2026-10-21,SALE,1320,Morning market
+9876543210,2026-10-21,PURCHASE,3800,Weekly stock
+9876543210,2026-10-25,DEPOSIT,400,Weekly savings
