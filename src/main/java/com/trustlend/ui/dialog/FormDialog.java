@@ -38,7 +38,7 @@ public abstract class FormDialog<R> extends Dialog<R> {
     protected FormDialog(String title, String header, String okText) {
         setTitle(title);
         setHeaderText(header);
-        getDialogPane().getStylesheets().add(Ui.stylesheet());
+        Ui.style(getDialogPane());
 
         grid.setHgap(14);
         grid.setVgap(10);

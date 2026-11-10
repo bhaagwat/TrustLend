@@ -290,7 +290,7 @@ public class DataView extends BaseView {
     }
 
     private void copyDatabase() {
-        Path db = AppConfig.getInstance().getPath("db.path");
+        Path db = ctx.databaseFile();
         Path file = chooseSave("Copy database file", "trustlend-copy-" + LocalDate.now() + ".db", "SQLite database",
                 "*.db", exportDir());
         if (file == null) return;

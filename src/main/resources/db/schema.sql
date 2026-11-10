@@ -1,14 +1,6 @@
--- TrustLend schema (SQLite). Executed statement-by-statement on start-up.
+-- TrustLend workspace schema (SQLite). Every account has its own workspace database
+-- (data/workspaces/user-<id>.db) built from this script; logins live in accounts.sql.
 -- Statements are separated by semicolons; every statement is idempotent.
-
-CREATE TABLE IF NOT EXISTS users (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    username      TEXT    NOT NULL UNIQUE,
-    password_hash TEXT    NOT NULL,
-    salt          TEXT    NOT NULL,
-    full_name     TEXT    NOT NULL,
-    role          TEXT    NOT NULL DEFAULT 'OFFICER'
-);
 
 CREATE TABLE IF NOT EXISTS vendors (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,

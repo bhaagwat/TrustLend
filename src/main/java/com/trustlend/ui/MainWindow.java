@@ -3,6 +3,9 @@ package com.trustlend.ui;
 import com.trustlend.model.User;
 import com.trustlend.service.AppContext;
 import com.trustlend.ui.component.Avatar;
+import com.trustlend.ui.component.GuidedTour;
+import com.trustlend.ui.component.Icons;
+import com.trustlend.service.StoryScenario;
 import com.trustlend.ui.component.Toast;
 import com.trustlend.ui.view.BaseView;
 import com.trustlend.ui.view.DashboardView;
@@ -21,6 +24,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
@@ -42,13 +46,13 @@ public class MainWindow extends StackPane {
 
     /** Navigation targets. */
     public enum Page {
-        DASHBOARD("Dashboard", "⌂"),
-        VENDORS("Vendors", "☰"),
-        NETWORK("Trust Network", "◎"),
-        LOANS("Loans", "₹"),
-        TRANSACTIONS("Transactions", "⇄"),
-        DATA("Reports & Data", "⇩"),
-        SETTINGS("Settings", "⚙");
+        DASHBOARD("Dashboard", "dashboard"),
+        VENDORS("Vendors", "vendors"),
+        NETWORK("Trust Network", "network"),
+        LOANS("Loans", "loans"),
+        TRANSACTIONS("Transactions", "transactions"),
+        DATA("Reports & Data", "data"),
+        SETTINGS("Settings", "settings");
 
         final String title;
         final String icon;
@@ -67,6 +71,7 @@ public class MainWindow extends StackPane {
     private final ToggleGroup navGroup = new ToggleGroup();
     private final StackPane busyOverlay = new StackPane();
     private final Label busyLabel = new Label();
+    private GuidedTour tour;
 
     public MainWindow(AppContext ctx, User user, Runnable onLogout) {
         this.ctx = ctx;
@@ -113,8 +118,9 @@ public class MainWindow extends StackPane {
         Avatar avatar = new Avatar(user.getFullName(), initials(user.getFullName()), 34);
         VBox who = new VBox(1, Ui.label(user.getFullName(), "user-name"),
                 Ui.label(user.getRole() == User.Role.ADMIN ? "Administrator" : "Loan officer", "user-role"));
-        Button logout = new Button("⏻");
-        logout.getStyleClass().add("nav-button");
+        Button logout = new Button(null, Icons.of("logout", 18));
+        logout.getStyleClass().addAll("nav-button", "icon-button");
+        logout.setTooltip(new Tooltip("Log out"));
         logout.setMaxWidth(Button.USE_PREF_SIZE);
         logout.setOnAction(e -> {
             if (Ui.confirm("Log out", "Do you want to log out of TrustLend?", "Log out")) onLogout.run();
@@ -122,14 +128,41 @@ public class MainWindow extends StackPane {
         HBox userBox = new HBox(10, avatar, who, Ui.hSpacer(), logout);
         userBox.getStyleClass().add("user-box");
 
-        VBox sidebar = new VBox(brand, nav, Ui.vSpacer(), userBox);
+        Button storyButton = new Button("Story mode: Meet Sunil", Icons.of("play", 18));
+        storyButton.getStyleClass().add("story-button");
+        storyButton.setMaxWidth(Double.MAX_VALUE);
+        storyButton.setOnAction(e -> startStory());
+
+        Button tourButton = new Button("Take the tour", Icons.of("help", 18));
+        tourButton.getStyleClass().add("tour-button");
+        tourButton.setMaxWidth(Double.MAX_VALUE);
+        tourButton.setOnAction(e -> startTour());
+
+        ToggleButton darkToggle = new ToggleButton(null, Icons.of("moon", 17));
+        darkToggle.getStyleClass().addAll("nav-button", "icon-button");
+        darkToggle.setSelected(Ui.isDark());
+        darkToggle.setTooltip(new Tooltip("Dark mode"));
+        darkToggle.setOnAction(e -> {
+            Ui.setDark(darkToggle.isSelected());
+            refreshAll();
+        });
+        ToggleButton presentToggle = new ToggleButton(null, Icons.of("present", 17));
+        presentToggle.getStyleClass().addAll("nav-button", "icon-button");
+        presentToggle.setSelected(Ui.isPresentation());
+        presentToggle.setTooltip(new Tooltip("Presentation mode: larger text for projectors"));
+        presentToggle.setOnAction(e -> Ui.setPresentation(presentToggle.isSelected()));
+        HBox toggles = new HBox(6, Ui.label("VIEW", "nav-section"), Ui.hSpacer(), darkToggle, presentToggle);
+        toggles.setAlignment(Pos.CENTER_LEFT);
+
+        VBox demo = new VBox(8, storyButton, tourButton, toggles);
+        demo.setPadding(new javafx.geometry.Insets(0, 0, 10, 0));
+        VBox sidebar = new VBox(brand, nav, Ui.vSpacer(), demo, userBox);
         sidebar.getStyleClass().add("sidebar");
         return sidebar;
     }
 
     private void addNav(VBox nav, Page page) {
-        Label icon = Ui.label(page.icon, "nav-icon");
-        ToggleButton b = new ToggleButton(page.title, icon);
+        ToggleButton b = new ToggleButton(page.title, Icons.of(page.icon, 18));
         b.getStyleClass().add("nav-button");
         b.setMaxWidth(Double.MAX_VALUE);
         b.setToggleGroup(navGroup);
@@ -195,6 +228,68 @@ public class MainWindow extends StackPane {
         }
     }
 
+    /** Marks one sidebar entry for the guided tour (null clears the mark). */
+    public void highlightNav(Page page) {
+        navButtons.forEach((p, b) -> {
+            b.getStyleClass().remove("tour-target");
+            if (p == page) b.getStyleClass().add("tour-target");
+        });
+    }
+
+    // ------------------------------------------------------------------ guided demo
+
+    /** Opens the step-by-step tour card (bottom-right); the app stays fully usable underneath. */
+    public void startTour() {
+        if (tour != null) getChildren().remove(tour);
+        tour = new GuidedTour(this, () -> {
+            getChildren().remove(tour);
+            tour = null;
+        });
+        getChildren().add(getChildren().indexOf(busyOverlay), tour);   // below the busy overlay
+        tour.start();
+    }
+
+    /** Opens the full-window "Meet Sunil" story (works in any workspace, nothing is saved). */
+    public void startStory() {
+        runBusy("Preparing the story…", () -> StoryScenario.build(ctx.scores().getSettings(), LocalDate.now(),
+                com.trustlend.config.AppConfig.getInstance().getInt("loan.min.score"), ctx.loans()::interestFor), chapters -> {
+            if (tour != null) {
+                getChildren().remove(tour);
+                tour = null;
+                highlightNav(null);
+            }
+            StoryMode[] holder = new StoryMode[1];
+            holder[0] = new StoryMode(chapters, () -> getChildren().remove(holder[0]));
+            getChildren().add(getChildren().indexOf(busyOverlay), holder[0]);
+            holder[0].start();
+        });
+    }
+
+    /** Fills an empty workspace with the demo community, then offers the tour. */
+    public void loadDemoData() {
+        runBusy("Creating 36 vendors with 5 months of history…", ctx::loadDemoData, n -> {
+            refreshAll();
+            toast(n + " demo vendors loaded with transactions, loans and vouches");
+            if (tour == null && Ui.confirm("Demo data ready", "Would you like a guided tour of TrustLend now?", "Start tour")) {
+                startTour();
+            }
+        });
+    }
+
+    /** Deletes everything in this account's workspace (after confirmation). */
+    public void clearWorkspace() {
+        if (!Ui.confirm("Clear workspace", "Delete ALL vendors, transactions, loans, repayments and vouches in your "
+                + "workspace? Other accounts are not affected. This cannot be undone.", "Delete everything")) return;
+        runBusy("Clearing your workspace…", () -> {
+            ctx.clearWorkspace();
+            return null;
+        }, ignored -> {
+            navigate(Page.DASHBOARD);
+            refreshAll();
+            toastInfo("Workspace cleared - you are starting from zero");
+        });
+    }
+
     // ------------------------------------------------------------------ feedback
 
     public void toast(String message) {
@@ -224,12 +319,24 @@ public class MainWindow extends StackPane {
 
     /** Recalculates all scores in the background, then refreshes the screens. */
     public void recalculateScores(Supplier<String> successMessage) {
+        recalculateScores(successMessage, null);
+    }
+
+    /** As above; {@code after} runs once the new scores are in place. */
+    public void recalculateScores(Supplier<String> successMessage, Runnable after) {
         runBusy("Propagating trust through the network…", () -> {
             ctx.loans().refreshOverdue(LocalDate.now());
             return ctx.scores().recalculateAll(LocalDate.now());
         }, scores -> {
             refreshAll();
             toast(successMessage.get());
+            if (after != null) after.run();
         });
+    }
+
+    /** Opens the network centred on {@code vendorId} and pulses the given vendors red (default ripple). */
+    public void showRippleOnNetwork(long vendorId, java.util.Collection<Long> affected) {
+        openNetworkAround(vendorId);
+        ((NetworkView) views.get(Page.NETWORK)).pulse(affected);
     }
 }

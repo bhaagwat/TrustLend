@@ -9,6 +9,7 @@ import com.trustlend.ui.MainWindow;
 import com.trustlend.ui.Ui;
 import com.trustlend.ui.dialog.LoanDialog;
 import com.trustlend.ui.dialog.RepaymentDialog;
+import com.trustlend.ui.dialog.RippleDialog;
 import com.trustlend.util.Formats;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
@@ -245,8 +246,23 @@ public class LoansView extends BaseView {
                 + " as defaulted?\n\nTheir score will be capped and everyone who vouched for them will lose "
                 + "some vouching credibility.", "Mark defaulted")) {
             try {
+                long borrower = loan.getVendorId();
+                java.util.Map<Long, com.trustlend.model.ScoreBreakdown> before = new java.util.HashMap<>(ctx.scores().latest());
+                java.util.Set<Long> vouchers = new java.util.HashSet<>(ctx.scores().graph().inNeighbours(borrower).keySet());
                 ctx.loans().markDefaulted(loan.getId());
-                shell.recalculateScores(() -> "Loan #" + loan.getId() + " marked defaulted; network updated");
+                shell.recalculateScores(() -> "Loan #" + loan.getId() + " marked defaulted; network updated", () -> {
+                    try {
+                        java.util.Map<Long, com.trustlend.model.Vendor> vendors = new java.util.HashMap<>();
+                        ctx.vendors().findAll().forEach(v -> vendors.put(v.getId(), v));
+                        var rows = RippleDialog.rows(borrower, vouchers, vendors, before, ctx.scores().latest());
+                        new RippleDialog(loan.getVendorName(), rows).showAndWait()
+                                .filter(Boolean::booleanValue)
+                                .ifPresent(b -> shell.showRippleOnNetwork(borrower,
+                                        rows.stream().map(r -> r.vendor().getId()).toList()));
+                    } catch (Exception e) {
+                        Ui.error("Could not show the ripple effect", e);
+                    }
+                });
             } catch (Exception e) {
                 Ui.error("Could not update loan", e);
             }
@@ -269,7 +285,7 @@ public class LoansView extends BaseView {
             a.setHeaderText("Loan #" + loan.getId() + " · " + loan.getVendorName() + " · " + loan.getStatus().getLabel()
                     + "\nRepaid " + Formats.inr(loan.getAmountRepaid()) + " of " + Formats.inr(loan.getTotalPayable()));
             a.getDialogPane().setContent(list);
-            a.getDialogPane().getStylesheets().add(Ui.stylesheet());
+            Ui.style(a.getDialogPane());
             a.showAndWait();
         } catch (Exception e) {
             Ui.error("Could not load repayments", e);

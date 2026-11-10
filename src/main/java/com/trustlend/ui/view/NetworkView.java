@@ -74,6 +74,8 @@ public class NetworkView extends BaseView {
     private final Map<Long, Vendor> vendors = new HashMap<>();
     private TrustGraph<Long> graph = new TrustGraph<>();
     private Long selected;
+    private Long hovered;
+    private int fitAttempts;
     private double dragAnchorX, dragAnchorY, panStartX, panStartY;
 
     public NetworkView(AppContext ctx, MainWindow shell) {
@@ -81,15 +83,15 @@ public class NetworkView extends BaseView {
         Button reset = new Button("Reset view");
         reset.getStyleClass().add("btn-ghost");
         reset.setOnAction(e -> {
-            zoomGroup.setScaleX(1);
-            zoomGroup.setScaleY(1);
-            zoomGroup.setTranslateX(0);
-            zoomGroup.setTranslateY(0);
             clearSelection();
+            fitToView();
         });
         Button relayout = new Button("Re-arrange");
         relayout.getStyleClass().add("btn-ghost");
-        relayout.setOnAction(e -> layoutNodes(System.nanoTime()));
+        relayout.setOnAction(e -> {
+            layoutNodes(System.nanoTime());
+            fitToView();
+        });
         setHeader("Trust Network", "Vouches form a weighted, directed graph — trust flows along the arrows", relayout, reset);
 
         canvas.setPrefSize(W, H);
@@ -187,6 +189,8 @@ public class NetworkView extends BaseView {
 
             buildScene();
             layoutNodes(7);
+            fitAttempts = 0;
+            fitToView();
             int n = graph.nodeCount();
             int m = graph.edgeCount();
             double density = n > 1 ? m / (double) (n * (n - 1)) : 0;
@@ -295,6 +299,47 @@ public class NetworkView extends BaseView {
         pos.forEach((nv, p) -> nv.moveTo(p[0], p[1]));
     }
 
+    /** Zooms and pans so the whole network fills the visible area (with a margin). */
+    private void fitToView() {
+        if (nodes.isEmpty()) return;
+        double vw = viewport.getWidth();
+        double vh = viewport.getHeight();
+        if (vw <= 0 || vh <= 0) {
+            if (fitAttempts++ < 5) javafx.application.Platform.runLater(this::fitToView);   // not laid out yet
+            return;
+        }
+        double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+        for (NodeView nv : nodes.values()) {
+            minX = Math.min(minX, nv.getLayoutX() - nv.radius - 30);
+            maxX = Math.max(maxX, nv.getLayoutX() + nv.radius + 30);
+            minY = Math.min(minY, nv.getLayoutY() - nv.radius - 10);
+            maxY = Math.max(maxY, nv.getLayoutY() + nv.radius + 24);
+        }
+        double scale = Math.min((vw - 40) / (maxX - minX), (vh - 40) / (maxY - minY));
+        scale = Math.max(0.5, Math.min(2.2, scale));
+        double cx = (minX + maxX) / 2;
+        double cy = (minY + maxY) / 2;
+        // the group scales around the canvas centre and the StackPane centres the canvas in the viewport
+        double tx = -(cx - W / 2) * scale;
+        double ty = -(cy - H / 2) * scale;
+        javafx.animation.Timeline t = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.millis(450),
+                new javafx.animation.KeyValue(zoomGroup.scaleXProperty(), scale),
+                new javafx.animation.KeyValue(zoomGroup.scaleYProperty(), scale),
+                new javafx.animation.KeyValue(zoomGroup.translateXProperty(), tx),
+                new javafx.animation.KeyValue(zoomGroup.translateYProperty(), ty)));
+        t.play();
+    }
+
+    /** Red "shock waves" around the given vendors, used to show how a default spreads. */
+    public void pulse(java.util.Collection<Long> vendorIds) {
+        javafx.application.Platform.runLater(() -> {
+            for (Long id : vendorIds) {
+                NodeView nv = nodes.get(id);
+                if (nv != null) nv.pulse();
+            }
+        });
+    }
+
     // ------------------------------------------------------------------ selection & highlight
 
     private void select(long id) {
@@ -316,21 +361,22 @@ public class NetworkView extends BaseView {
     private void applyHighlight() {
         Object market = marketFilter.getValue();
         boolean marketMode = market instanceof String s && !s.equals("All markets");
+        Long focus = selected != null ? selected : hovered;     // hovering previews a vendor's connections
         for (NodeView nv : nodes.values()) {
             boolean inMarket = !marketMode || nv.vendor.getMarketArea().equals(market);
-            boolean related = selected == null || nv.vendor.getId() == selected
-                    || graph.weight(selected, nv.vendor.getId()) > 0 || graph.weight(nv.vendor.getId(), selected) > 0;
+            boolean related = focus == null || nv.vendor.getId() == focus
+                    || graph.weight(focus, nv.vendor.getId()) > 0 || graph.weight(nv.vendor.getId(), focus) > 0;
             nv.setOpacity(inMarket && related ? 1.0 : 0.18);
             nv.setSelected(selected != null && nv.vendor.getId() == selected);
         }
         for (EdgeView e : edges) {
             boolean inMarket = !marketMode || (e.from.vendor.getMarketArea().equals(market)
                     || e.to.vendor.getMarketArea().equals(market));
-            if (selected == null) {
+            if (focus == null) {
                 e.style(EDGE_COLOR, inMarket ? 0.45 : 0.06);
-            } else if (e.to.vendor.getId() == selected) {
+            } else if (e.to.vendor.getId() == focus) {
                 e.style(IN_COLOR, 0.95);
-            } else if (e.from.vendor.getId() == selected) {
+            } else if (e.from.vendor.getId() == focus) {
                 e.style(OUT_COLOR, 0.95);
             } else {
                 e.style(EDGE_COLOR, 0.05);
@@ -516,7 +562,7 @@ public class NetworkView extends BaseView {
             initials.setMouseTransparent(true);
             Text name = new Text(v.getName().split(" ")[0]);
             name.getStyleClass().add("graph-node-label");
-            name.setFont(Font.font(11));
+            name.setFont(Font.font(null, FontWeight.SEMI_BOLD, 12.5));
             name.setX(-name.getLayoutBounds().getWidth() / 2);
             name.setY(radius + 14);
             name.setMouseTransparent(true);
@@ -538,6 +584,18 @@ public class NetworkView extends BaseView {
                 dragAnchorY = e.getSceneY();
                 e.consume();
             });
+            setOnMouseEntered(e -> {
+                if (selected == null) {
+                    hovered = vendor.getId();
+                    applyHighlight();
+                }
+            });
+            setOnMouseExited(e -> {
+                if (hovered != null) {
+                    hovered = null;
+                    applyHighlight();
+                }
+            });
             setOnMouseClicked(e -> {
                 if (e.getButton() == MouseButton.PRIMARY && e.isStillSincePress()) {
                     if (e.getClickCount() == 2) shell.openVendor(vendor.getId());
@@ -555,6 +613,31 @@ public class NetworkView extends BaseView {
 
         void setSelected(boolean on) {
             ring.setVisible(on);
+        }
+
+        void pulse() {
+            for (int i = 0; i < 3; i++) {
+                Circle wave = new Circle(radius, Color.TRANSPARENT);
+                wave.setStroke(Color.web("#d93025"));
+                wave.setStrokeWidth(3);
+                wave.setMouseTransparent(true);
+                getChildren().add(0, wave);
+                javafx.animation.Timeline t = new javafx.animation.Timeline(
+                        new javafx.animation.KeyFrame(javafx.util.Duration.ZERO,
+                                new javafx.animation.KeyValue(wave.radiusProperty(), radius),
+                                new javafx.animation.KeyValue(wave.opacityProperty(), 0.9)),
+                        new javafx.animation.KeyFrame(javafx.util.Duration.millis(1400),
+                                new javafx.animation.KeyValue(wave.radiusProperty(), radius + 42),
+                                new javafx.animation.KeyValue(wave.opacityProperty(), 0)));
+                t.setDelay(javafx.util.Duration.millis(i * 450));
+                t.setCycleCount(3);
+                t.setOnFinished(e -> getChildren().remove(wave));
+                t.play();
+            }
+            circle.setStroke(Color.web("#d93025"));
+            javafx.animation.PauseTransition back = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(6));
+            back.setOnFinished(e -> circle.setStroke(Color.WHITE));
+            back.play();
         }
     }
 

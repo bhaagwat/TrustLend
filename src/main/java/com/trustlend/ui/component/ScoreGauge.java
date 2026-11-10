@@ -63,6 +63,11 @@ public class ScoreGauge extends Pane {
         caption.setFont(Font.font(null, FontWeight.BOLD, 11));
         caption.setFill(Color.web("#6b6f80"));
         bandText.setFont(Font.font(null, FontWeight.BOLD, 14));
+        // colours above are defaults; CSS can override them (dark mode, story mode, certificate)
+        getStyleClass().add("score-gauge");
+        track.getStyleClass().add("gauge-track");
+        scoreText.getStyleClass().add("gauge-score");
+        caption.getStyleClass().add("gauge-caption");
         getChildren().addAll(track, value, scoreText, caption, bandText);
 
         animated.addListener((obs, old, now) -> render(now.intValue(), size));

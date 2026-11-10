@@ -1,0 +1,71 @@
+/* =====================================================================
+   Presentation mode — bigger text for projectors and screen sharing.
+   Generated from app.css: every font size is scaled by 1.2.
+   (The trust certificate keeps its print sizes.)
+   ===================================================================== */
+
+.root { -fx-font-size: 15.6px; }
+
+.brand-mark .label { -fx-font-size: 22.8px; }
+.brand-title { -fx-font-size: 22.8px; }
+.brand-sub { -fx-font-size: 13.2px; }
+.nav-section { -fx-font-size: 12.6px; }
+.nav-button { -fx-font-size: 16.2px; }
+.nav-icon { -fx-font-size: 18px; }
+.user-role { -fx-font-size: 13.2px; }
+.page-title { -fx-font-size: 30px; }
+.page-subtitle { -fx-font-size: 15.6px; }
+.section-title { -fx-font-size: 18px; }
+.small { -fx-font-size: 13.8px; }
+.stat-label { -fx-font-size: 14.4px; }
+.stat-value { -fx-font-size: 32.4px; }
+.stat-hint { -fx-font-size: 13.8px; }
+.form-label { -fx-font-size: 14.4px; }
+.error-text { -fx-font-size: 14.4px; }
+.table-view .column-header .label { -fx-font-size: 13.8px; }
+.pill { -fx-font-size: 13.8px; }
+.chip { -fx-font-size: 13.8px; }
+.reason { -fx-font-size: 15px; }
+.reason-icon { -fx-font-size: 14.4px; }
+.axis { -fx-font-size: 13.2px; }
+.graph-node-label { -fx-font-size: 12.6px; }
+.login-hero { -fx-font-size: 39.6px; }
+.login-tag { -fx-font-size: 18px; }
+.login-point { -fx-font-size: 16.2px; }
+.login-hint { -fx-font-size: 14.4px; }
+.busy-overlay .label { -fx-font-size: 16.8px; }
+.dialog-pane > .header-panel .label { -fx-font-size: 19.2px; }
+.welcome-title { -fx-font-size: 21.6px; }
+.tour-counter { -fx-font-size: 13.2px; }
+.tour-title { -fx-font-size: 20.4px; }
+.tour-body { -fx-font-size: 15.6px; }
+.tour-try { -fx-font-size: 15px; }
+.dialog-title { -fx-font-size: 21.6px; }
+.decision-stamp { -fx-font-size: 26.4px; }
+.decision-headline { -fx-font-size: 18px; }
+.decision-sub { -fx-font-size: 14.4px; }
+.term-label { -fx-font-size: 13.2px; }
+.term-value { -fx-font-size: 20.4px; }
+.whatif-score { -fx-font-size: 52.8px; }
+.whatif-delta { -fx-font-size: 21.6px; }
+.ripple-delta { -fx-font-size: 18px; }
+.story-badge { -fx-font-size: 13.2px; }
+.story-heading { -fx-font-size: 21.6px; }
+.story-name { -fx-font-size: 24px; }
+.story-role { -fx-font-size: 15px; }
+.story-bar-label { -fx-font-size: 14.4px; }
+.story-bar-value { -fx-font-size: 14.4px; }
+.story-chapter-no { -fx-font-size: 13.8px; }
+.story-title { -fx-font-size: 36px; }
+.story-narration { -fx-font-size: 18px; }
+.story-event-text { -fx-font-size: 16.2px; }
+.story-event-score { -fx-font-size: 18px; }
+.story-node-text { -fx-font-size: 14.4px; }
+.story-node-label { -fx-font-size: 13.2px; }
+.story-diagram-caption { -fx-font-size: 13.2px; }
+.story-stamp { -fx-font-size: 55.2px; }
+.story-outcome-headline { -fx-font-size: 24px; }
+.story-outcome-detail { -fx-font-size: 16.8px; }
+.story-step { -fx-font-size: 14.4px; }
+.nav-button { -fx-padding: 12 14 12 14; }
+.table-row-cell { -fx-cell-size: 50; }

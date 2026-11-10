@@ -10,6 +10,9 @@ import com.trustlend.service.LoanService;
 import com.trustlend.ui.MainWindow;
 import com.trustlend.ui.Ui;
 import com.trustlend.ui.component.Avatar;
+import com.trustlend.ui.component.Icons;
+import com.trustlend.ui.component.WhatIfPanel;
+import com.trustlend.ui.dialog.CertificateDialog;
 import com.trustlend.ui.component.FactorBar;
 import com.trustlend.ui.component.ScoreGauge;
 import com.trustlend.ui.dialog.LoanDialog;
@@ -68,6 +71,7 @@ public class VendorProfileView extends BaseView {
     private final TableView<Loan> loanTable = new TableView<>();
     private final TableView<Transaction> txnTable = new TableView<>();
     private final Map<Long, Vendor> vendorsById = new HashMap<>();
+    private final WhatIfPanel whatIf;
 
     public VendorProfileView(AppContext ctx, MainWindow shell, long vendorId) {
         super(ctx, shell);
@@ -101,6 +105,7 @@ public class VendorProfileView extends BaseView {
         why.setPrefWidth(380);
 
         HBox top = new HBox(16, scoreCard, breakdown, why);
+        whatIf = new WhatIfPanel(ctx, vendorId);
 
         // ---- tabs
         historyChart.setLegendVisible(false);
@@ -141,7 +146,7 @@ public class VendorProfileView extends BaseView {
         VBox tabCard = Ui.card(tabs);
         tabCard.setPadding(new Insets(6));
 
-        VBox content = new VBox(16, top, tabCard);
+        VBox content = new VBox(16, top, whatIf, tabCard);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         setCenter(scroll);
@@ -170,6 +175,9 @@ public class VendorProfileView extends BaseView {
         Button network = new Button("View in network");
         network.getStyleClass().add("btn-ghost");
         network.setOnAction(e -> shell.openNetworkAround(vendorId));
+        Button certificate = new Button("Trust certificate", Icons.of("award", 16));
+        certificate.getStyleClass().add("btn-ghost");
+        certificate.setOnAction(e -> openCertificate());
         Button loan = new Button("₹  New loan");
         loan.getStyleClass().add("btn-accent");
         loan.setOnAction(e -> new LoanDialog(ctx, List.of(vendor), vendor).showAndWait()
@@ -178,7 +186,7 @@ public class VendorProfileView extends BaseView {
         Avatar avatar = new Avatar(vendor.getName(), vendor.getInitials(), 46);
         VBox text = new VBox(2, Ui.label(vendor.getName() + (vendor.isActive() ? "" : "  (inactive)"), "page-title"),
                 Ui.label(vendor.describeRole() + "  ·  +91 " + vendor.getPhone(), "page-subtitle"));
-        HBox header = new HBox(12, back, avatar, text, Ui.hSpacer(), txn, network, loan);
+        HBox header = new HBox(12, back, avatar, text, Ui.hSpacer(), txn, network, certificate, loan);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(0, 0, 20, 0));
         setTop(header);
@@ -218,9 +226,9 @@ public class VendorProfileView extends BaseView {
 
             LoanService.Offer offer = ctx.loans().offerFor(vendorId);
             offerLabel.setText(offer.note());
-            offerLabel.setStyle(offer.maxAmount() > 0
-                    ? "-fx-background-color: #dff3f0; -fx-text-fill: #0b5f58; -fx-padding: 8; -fx-background-radius: 8;"
-                    : "-fx-background-color: #fff3db; -fx-text-fill: #7a5200; -fx-padding: 8; -fx-background-radius: 8;");
+            offerLabel.getStyleClass().removeAll("offer-ok", "offer-no");
+            offerLabel.getStyleClass().add(offer.maxAmount() > 0 ? "offer-ok" : "offer-no");
+            whatIf.refresh();
 
             fillHistory();
             fillSales();
@@ -230,6 +238,21 @@ public class VendorProfileView extends BaseView {
             txnTable.getItems().setAll(ctx.transactions().forVendor(vendorId));
         } catch (Exception e) {
             Ui.error("Could not load vendor", e);
+        }
+    }
+
+    private void openCertificate() {
+        try {
+            ScoreBreakdown s = ctx.scores().scoreOf(vendorId).orElseThrow(() -> new IllegalStateException("No score yet"));
+            List<String> vouchers = ctx.vouches().received(vendorId).stream()
+                    .map(v -> vendorsById.containsKey(v.getVoucherId()) ? vendorsById.get(v.getVoucherId()).getName() : "Vendor #" + v.getVoucherId())
+                    .toList();
+            var w = ctx.scores().getSettings();
+            new CertificateDialog(new CertificateDialog.Data(vendor, s, ctx.loans().offerFor(vendorId), vouchers,
+                    ctx.transactions().forVendor(vendorId).size(), ctx.loans().loansOf(vendorId).size(),
+                    w.wConsistency(), w.wRepayment(), w.wTenure(), w.wNetwork())).showAndWait();
+        } catch (Exception e) {
+            Ui.error("Could not create the certificate", e);
         }
     }
 

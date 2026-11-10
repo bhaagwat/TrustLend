@@ -44,6 +44,10 @@ public final class Ui {
     public static Label label(String text, String... styleClasses) {
         Label l = new Label(text);
         l.getStyleClass().addAll(styleClasses);
+        for (String c : styleClasses) {
+            // badges must never shrink to "..." when their row gets tight
+            if (c.equals("pill") || c.equals("chip")) l.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
+        }
         return l;
     }
 
@@ -133,11 +137,58 @@ public final class Ui {
         a.setTitle(title);
         a.setHeaderText(title);
         if (owner != null) a.initOwner(owner);
-        a.getDialogPane().getStylesheets().add(stylesheet());
+        style(a.getDialogPane());
     }
 
     public static String stylesheet() {
         return Ui.class.getResource("/styles/app.css").toExternalForm();
+    }
+
+    // ------------------------------------------------------------------ themes
+
+    private static final java.util.prefs.Preferences PREFS =
+            java.util.prefs.Preferences.userRoot().node("com/trustlend/ui");
+    private static boolean dark = PREFS.getBoolean("dark", false);
+    private static boolean presentation = PREFS.getBoolean("presentation", false);
+
+    /** app.css, plus dark.css and/or presentation.css (bigger text for projectors) when switched on. */
+    public static java.util.List<String> stylesheets() {
+        java.util.List<String> list = new java.util.ArrayList<>();
+        list.add(stylesheet());
+        if (dark) list.add(Ui.class.getResource("/styles/dark.css").toExternalForm());
+        if (presentation) list.add(Ui.class.getResource("/styles/presentation.css").toExternalForm());
+        return list;
+    }
+
+    /** Applies the current theme to a dialog. */
+    public static void style(javafx.scene.control.DialogPane pane) {
+        pane.getStylesheets().setAll(stylesheets());
+    }
+
+    /** Applies the current theme to a window's scene. */
+    public static void style(javafx.scene.Scene scene) {
+        scene.getStylesheets().setAll(stylesheets());
+    }
+
+    public static boolean isDark() {
+        return dark;
+    }
+
+    public static boolean isPresentation() {
+        return presentation;
+    }
+
+    /** Switches dark mode on/off for the main window and remembers the choice (java.util.prefs). */
+    public static void setDark(boolean on) {
+        dark = on;
+        PREFS.putBoolean("dark", on);
+        if (owner != null && owner.getScene() != null) style(owner.getScene());
+    }
+
+    public static void setPresentation(boolean on) {
+        presentation = on;
+        PREFS.putBoolean("presentation", on);
+        if (owner != null && owner.getScene() != null) style(owner.getScene());
     }
 
     // ------------------------------------------------------------------ background work

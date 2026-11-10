@@ -31,7 +31,30 @@ public class StatCard extends VBox {
     }
 
     public void update(String valueText, String hintText) {
+        if (counter != null) counter.stop();
         value.setText(valueText);
         hint.setText(hintText);
+    }
+
+    private final javafx.beans.property.DoubleProperty shown = new javafx.beans.property.SimpleDoubleProperty(0);
+    private javafx.animation.Timeline counter;
+    private java.util.function.DoubleFunction<String> format = v -> String.valueOf(Math.round(v));
+
+    /** Counts the number up (or down) from its current value to {@code target} in ~0.9 s. */
+    public void animateTo(double target, java.util.function.DoubleFunction<String> fmt, String hintText) {
+        format = fmt;
+        hint.setText(hintText);
+        if (counter != null) counter.stop();
+        if (shown.get() == target) {
+            value.setText(fmt.apply(target));
+            return;
+        }
+        counter = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.millis(900),
+                new javafx.animation.KeyValue(shown, target, javafx.animation.Interpolator.EASE_OUT)));
+        counter.play();
+    }
+
+    {
+        shown.addListener((o, a, b) -> value.setText(format.apply(b.doubleValue())));
     }
 }

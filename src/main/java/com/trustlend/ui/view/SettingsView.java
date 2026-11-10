@@ -6,6 +6,8 @@ import com.trustlend.model.Vendor;
 import com.trustlend.service.AppContext;
 import com.trustlend.ui.MainWindow;
 import com.trustlend.ui.Ui;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.HPos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -34,6 +36,8 @@ public class SettingsView extends BaseView {
     private final Slider minScore = slider(300, 750, 500);
     private final Label minScoreLabel = Ui.label("", "strong");
     private final VBox about = new VBox(6);
+    private final Label workspaceInfo = Ui.label("", "strong");
+    private final BooleanProperty workspaceEmpty = new SimpleBooleanProperty(true);
 
     public SettingsView(AppContext ctx, MainWindow shell) {
         super(ctx, shell);
@@ -43,7 +47,7 @@ public class SettingsView extends BaseView {
         Button defaults = new Button("Restore defaults");
         defaults.getStyleClass().add("btn-ghost");
         defaults.setOnAction(e -> loadFrom(EngineSettings.defaults(), 18, 500));
-        setHeader("Settings", "Tune how much each signal counts. Weights are normalised to 100% automatically.", defaults, save);
+        setHeader("Settings", "Your workspace, and how much each signal counts. Model settings apply to every account on this computer.", defaults, save);
 
         GridPane weightGrid = grid();
         int row = 0;
@@ -82,13 +86,29 @@ public class SettingsView extends BaseView {
 
         VBox aboutCard = Ui.titledCard("About this installation", about);
 
+        Button demo = new Button("Load demo data");
+        demo.getStyleClass().add("btn-accent");
+        demo.setOnAction(e -> shell.loadDemoData());
+        demo.disableProperty().bind(workspaceEmpty.not());
+        Button clear = new Button("Clear workspace…");
+        clear.getStyleClass().add("btn-danger");
+        clear.setOnAction(e -> shell.clearWorkspace());
+        clear.disableProperty().bind(workspaceEmpty);
+        Button tour = new Button("?  Take the tour");
+        tour.getStyleClass().add("btn-ghost");
+        tour.setOnAction(e -> shell.startTour());
+        VBox workspaceCard = Ui.titledCard("Your workspace", workspaceInfo,
+                note("Each account has its own private database. Demo data can be loaded into an empty workspace; "
+                        + "clear it to start again from zero. Other accounts are never affected."),
+                Ui.row(10, demo, clear, tour));
+
         HBox top = new HBox(16, weightCard, graphCard);
         HBox bottom = new HBox(16, loanCard, aboutCard);
         for (VBox c : new VBox[]{weightCard, graphCard, loanCard, aboutCard}) {
             HBox.setHgrow(c, Priority.ALWAYS);
             c.setPrefWidth(480);
         }
-        ScrollPane scroll = new ScrollPane(new VBox(16, top, bottom));
+        ScrollPane scroll = new ScrollPane(new VBox(16, workspaceCard, top, bottom));
         scroll.setFitToWidth(true);
         setCenter(scroll);
     }
@@ -126,10 +146,17 @@ public class SettingsView extends BaseView {
     public void refresh() {
         AppConfig c = AppConfig.getInstance();
         loadFrom(ctx.scores().getSettings(), c.getDouble("loan.interest.base"), c.getInt("loan.min.score"));
+        try {
+            long vendors = ctx.vendors().findAll().size();
+            workspaceEmpty.set(vendors == 0);
+            workspaceInfo.setText(vendors == 0 ? "Empty - no vendors yet" : vendors + " vendor(s) in your workspace");
+        } catch (Exception e) {
+            workspaceInfo.setText("Could not read workspace: " + e.getMessage());
+        }
         about.getChildren().setAll(
                 info("Java runtime", System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ")"),
                 info("JavaFX runtime", String.valueOf(System.getProperty("javafx.runtime.version"))),
-                info("Database", c.getPath("db.path").toAbsolutePath().toString()),
+                info("Your workspace database", ctx.databaseFile() == null ? "(in memory)" : ctx.databaseFile().toAbsolutePath().toString()),
                 info("User config", AppConfig.USER_CONFIG.toAbsolutePath().toString()),
                 info("Vendor objects created this session", String.valueOf(Vendor.getInstancesCreated())),
                 info("JVM memory in use", (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024) + " MB"));

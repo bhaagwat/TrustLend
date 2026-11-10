@@ -1,0 +1,63 @@
+/* =====================================================================
+   TrustLend dark theme — loaded on top of app.css when dark mode is on.
+   Most of the work is done by redefining the colour tokens; the rules
+   below only cover places where app.css uses a fixed light colour.
+   Story mode and the trust certificate keep their own colours.
+   ===================================================================== */
+
+.root {
+    -tl-paper: #12152a;
+    -tl-card: #1b1f38;
+    -tl-line: #2e3456;
+    -tl-text: #e8eaf6;
+    -tl-muted: #9aa0c3;
+    -tl-saffron-soft: #3b2f10;
+    -tl-teal: #14b8a6;
+    -tl-teal-soft: #113c3a;
+    -tl-red: #f87171;
+    -tl-red-soft: #3b1c20;
+
+    /* Modena derives control and default text colours from these */
+    -fx-background: #12152a;
+    -fx-base: #262b48;
+    -fx-control-inner-background: #1b1f38;
+    -fx-control-inner-background-alt: #1e2340;
+    -fx-accent: #14b8a6;
+    -fx-focus-color: #14b8a6;
+    -fx-faint-focus-color: #14b8a622;
+}
+
+.btn-ghost:hover { -fx-background-color: #262b48; }
+.btn-danger:hover { -fx-background-color: #4a2227; }
+.text-field, .text-area .content, .combo-box { -fx-background-color: #1b1f38; }
+.text-field { -fx-text-fill: -tl-text; -fx-prompt-text-fill: #6f7596; }
+
+.table-view, .table-view .column-header-background, .table-view .column-header { -fx-background-color: -tl-card; }
+.table-row-cell { -fx-background-color: -tl-card; -fx-border-color: transparent transparent #262b48 transparent; }
+.table-row-cell:odd { -fx-background-color: #1e2340; }
+.table-row-cell:hover { -fx-background-color: #232a4a; }
+.table-row-cell:selected { -fx-background-color: #134240; }
+.list-view, .list-cell { -fx-background-color: -tl-card; }
+.list-cell:odd { -fx-background-color: #1e2340; }
+.list-cell:selected { -fx-background-color: #134240; }
+
+.chip { -fx-background-color: #2a3052; }
+.gauge-track { -fx-stroke: #2a3052; }
+.factor-bar > .track, .progress-bar > .track, .ripple-track { -fx-background-color: #2a3052; }
+.chart-horizontal-grid-lines { -fx-stroke: #262b48; }
+.default-color0.chart-line-symbol, .default-color0.chart-area-symbol { -fx-background-color: -tl-teal, -tl-card; }
+.bands-pie .chart-pie { -fx-border-color: -tl-card; }
+.graph-canvas { -fx-background-color: radial-gradient(center 50% 50%, radius 80%, #20254a, #12152a); }
+
+.dialog-pane > .header-panel { -fx-background-color: -tl-card; }
+.tab-pane .tab:selected { -fx-background-color: -tl-card; }
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-label { -fx-text-fill: -tl-text; }
+.busy-overlay { -fx-background-color: #12152acc; }
+.welcome-card { -fx-background-color: linear-gradient(to right, #3b2f10, #1b1f38); }
+.login-hint { -fx-text-fill: #ffd98a; }
+.offer-ok { -fx-text-fill: #7ee0d5; }
+.offer-no { -fx-text-fill: #ffd98a; }
+
+/* the decision banner keeps light pastel colours, so its texts stay dark */
+.decision-banner .decision-headline { -fx-text-fill: #1f2333; }
+.decision-banner .decision-sub { -fx-text-fill: #4b5063; }

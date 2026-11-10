@@ -44,13 +44,17 @@ public class DashboardView extends BaseView {
     private final VBox topList = new VBox(6);
     private final VBox activityList = new VBox(4);
     private final VBox factorList = new VBox(10);
+    private final VBox welcome = new VBox(12);
 
     public DashboardView(AppContext ctx, MainWindow shell) {
         super(ctx, shell);
         Button recalc = new Button("↻  Recalculate scores");
         recalc.getStyleClass().add("btn-accent");
         recalc.setOnAction(e -> shell.recalculateScores(() -> "Trust scores recalculated for all vendors"));
-        setHeader(greeting(), "Portfolio health and community trust at a glance — " + Formats.date(LocalDate.now()), recalc);
+        Button story = new Button("Story mode: Meet Sunil", com.trustlend.ui.component.Icons.of("play", 16));
+        story.getStyleClass().add("btn-ghost");
+        story.setOnAction(e -> shell.startStory());
+        setHeader(greeting(), "Portfolio health and community trust at a glance — " + Formats.date(LocalDate.now()), story, recalc);
 
         HBox kpis = new HBox(16, vendorsCard, scoreCard, loansCard, repayCard);
 
@@ -82,10 +86,35 @@ public class DashboardView extends BaseView {
         }
         HBox bottom = new HBox(16, topCard, factorsCard, activityCard);
 
-        VBox content = new VBox(18, kpis, charts, bottom);
+        buildWelcome();
+        VBox content = new VBox(18, welcome, kpis, charts, bottom);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         setCenter(scroll);
+    }
+
+    /** Shown only while the workspace is empty, e.g. right after creating an account. */
+    private void buildWelcome() {
+        Button demo = new Button("Load demo data");
+        demo.getStyleClass().add("btn-accent");
+        demo.setOnAction(e -> shell.loadDemoData());
+        Button own = new Button("+  Add my first vendor");
+        own.getStyleClass().add("btn-primary");
+        own.setOnAction(e -> shell.navigate(MainWindow.Page.VENDORS));
+        Button tour = new Button("?  Take the tour");
+        tour.getStyleClass().add("btn-ghost");
+        tour.setOnAction(e -> shell.startTour());
+        Label text = Ui.label("This is your private workspace - nobody else using TrustLend on this computer can see it. "
+                + "Load the demo community (36 vendors across 5 Delhi markets with 5 months of sales, loans, "
+                + "repayments and vouches) to explore every feature, or start from zero with your own vendors.", "muted");
+        text.setWrapText(true);
+        Button story = new Button("Watch the 2-minute story", com.trustlend.ui.component.Icons.of("play", 16));
+        story.getStyleClass().add("btn-ghost");
+        story.setOnAction(e -> shell.startStory());
+        welcome.getChildren().setAll(Ui.label("Your workspace is empty", "welcome-title"), text, Ui.row(10, demo, own, story, tour));
+        welcome.getStyleClass().add("welcome-card");
+        welcome.setVisible(false);
+        welcome.setManaged(false);
     }
 
     private static String greeting() {
@@ -96,14 +125,20 @@ public class DashboardView extends BaseView {
     @Override
     public void refresh() {
         try {
+            boolean empty = ctx.isEmpty();
+            welcome.setVisible(empty);
+            welcome.setManaged(empty);
             AnalyticsService.Stats s = ctx.analytics().compute();
             int healthy = s.bandCounts().get(RiskBand.EXCELLENT) + s.bandCounts().get(RiskBand.GOOD);
-            vendorsCard.update(String.valueOf(s.vendors()), healthy + " rated Good or better · " + s.vouches() + " vouches");
+            vendorsCard.animateTo(s.vendors(), v -> String.valueOf(Math.round(v)),
+                    healthy + " rated Good or better · " + s.vouches() + " vouches");
             RiskBand avgBand = RiskBand.fromScore((int) Math.round(s.averageScore()));
-            scoreCard.update(String.valueOf(Math.round(s.averageScore())), "Portfolio average is " + avgBand.getLabel());
-            loansCard.update(Formats.inrCompact(s.outstanding()), s.openLoans() + " open loans · "
+            if (s.vendors() == 0) scoreCard.update("—", "Scores appear once you add vendors");
+            else scoreCard.animateTo(Math.round(s.averageScore()), v -> String.valueOf(Math.round(v)),
+                    "Portfolio average is " + avgBand.getLabel());
+            loansCard.animateTo(s.outstanding(), Formats::inrCompact, s.openLoans() + " open loans · "
                     + Formats.inrCompact(s.totalDisbursed()) + " disbursed to date");
-            repayCard.update(Formats.percent(s.onTimeRate()), s.defaulted() + " defaulted loan(s) in portfolio");
+            repayCard.animateTo(s.onTimeRate(), Formats::percent, s.defaulted() + " defaulted loan(s) in portfolio");
 
             fillHistogram(s.scoreHistogram());
             fillPie(s.bandCounts());

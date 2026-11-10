@@ -20,6 +20,7 @@ import com.trustlend.util.Formats;
 import com.trustlend.util.Validators;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +71,100 @@ public class LoanService {
             note = "Eligible up to " + Formats.inr(max) + " at " + String.format("%.1f%%", rate) + " p.a.";
         }
         return new Offer(score, band, max, rate, note);
+    }
+
+    /** Lending policy for a score alone (ignores open or defaulted loans). Used by the what-if tools. */
+    public record Terms(boolean eligible, double maxAmount, double interestRate) { }
+
+    public Terms termsForScore(int score) {
+        int minScore = AppConfig.getInstance().getInt("loan.min.score");
+        RiskBand band = RiskBand.fromScore(score);
+        boolean ok = score >= minScore && band.getMaxLoan() > 0;
+        return new Terms(ok, ok ? band.getMaxLoan() : 0, interestFor(score));
+    }
+
+    // ------------------------------------------------------------------ loan decision
+
+    public enum Verdict { APPROVED, REDUCED, DECLINED }
+
+    /** One row of the weekly repayment schedule. */
+    public record Instalment(int number, LocalDate dueDate, double amount, double balanceAfter) { }
+
+    /**
+     * The answer to a loan application, as shown on the decision card. Nothing is saved;
+     * {@link #issueLoan} disburses an approved decision.
+     */
+    public record Decision(Verdict verdict, Vendor vendor, int score, RiskBand band, double requested,
+                           double approvedAmount, double interestRate, int tenureWeeks, LocalDate issueDate,
+                           String headline, List<String> reasons, List<Instalment> schedule) {
+
+        public double weeklyInstalment() {
+            return schedule.isEmpty() ? 0 : schedule.get(0).amount();
+        }
+
+        public double totalPayable() {
+            return schedule.stream().mapToDouble(Instalment::amount).sum();
+        }
+
+        public double totalInterest() {
+            return Math.max(0, totalPayable() - approvedAmount);
+        }
+    }
+
+    /** Evaluates an application the way a credit officer would, and explains the answer. */
+    public Decision decide(long vendorId, double amount, int tenureWeeks, LocalDate issueDate)
+            throws ValidationException, DataAccessException, EntityNotFoundException {
+        Vendor vendor = vendorDao.findById(vendorId).orElseThrow(() -> new EntityNotFoundException("Vendor", vendorId));
+        Validators.requirePositive("amount", amount);
+        Validators.requireRange("tenure (weeks)", tenureWeeks, 4, 52);
+        Offer offer = offerFor(vendorId);
+
+        List<String> reasons = new ArrayList<>();
+        scoreService.scoreOf(vendorId).ifPresent(b -> b.reasons().stream().limit(4).forEach(reasons::add));
+
+        Verdict verdict;
+        double approved;
+        String headline;
+        if (!vendor.isActive()) {
+            verdict = Verdict.DECLINED;
+            approved = 0;
+            headline = vendor.getName() + " is marked inactive";
+        } else if (offer.maxAmount() <= 0) {
+            verdict = Verdict.DECLINED;
+            approved = 0;
+            headline = offer.note();
+        } else if (amount > offer.maxAmount()) {
+            verdict = Verdict.REDUCED;
+            approved = offer.maxAmount();
+            headline = "Approved for " + Formats.inr(approved) + " — the " + offer.band().getLabel()
+                    + " band limit (asked for " + Formats.inr(amount) + ")";
+        } else {
+            verdict = Verdict.APPROVED;
+            approved = amount;
+            headline = "Approved: " + Formats.inr(amount) + " at " + String.format("%.1f%%", offer.interestRate()) + " p.a.";
+        }
+        reasons.add(0, "Trust score " + offer.score() + " (" + offer.band().getLabel() + ") → limit "
+                + Formats.inr(offer.band().getMaxLoan()) + ", rate " + String.format("%.1f%%", offer.interestRate()) + " p.a.");
+
+        List<Instalment> schedule = approved > 0 ? schedule(approved, offer.interestRate(), tenureWeeks, issueDate) : List.of();
+        return new Decision(verdict, vendor, offer.score(), offer.band(), amount, approved, offer.interestRate(),
+                tenureWeeks, issueDate, headline, reasons, schedule);
+    }
+
+    /** Equal weekly instalments (simple interest, as in {@link Loan}); the last one absorbs rounding. */
+    public static List<Instalment> schedule(double principal, double ratePercent, int tenureWeeks, LocalDate issueDate) {
+        Loan sample = new Loan(0, 0, principal, ratePercent, tenureWeeks, issueDate,
+                issueDate.plusWeeks(tenureWeeks), LoanStatus.ACTIVE, 0);
+        double total = sample.getTotalPayable();
+        double weekly = sample.getWeeklyInstalment();
+        List<Instalment> rows = new ArrayList<>();
+        double balance = total;
+        for (int n = 1; n <= tenureWeeks && balance > 0.005; n++) {
+            double pay = n == tenureWeeks ? balance : Math.min(weekly, balance);
+            balance = Math.max(0, Math.round((balance - pay) * 100) / 100.0);
+            rows.add(new Instalment(n, sample.instalmentDueDate(n), Math.round(pay * 100) / 100.0, balance));
+        }
+        return rows;
     }
 
     /** Better score → cheaper credit. Clamped to 12%..30% p.a. */

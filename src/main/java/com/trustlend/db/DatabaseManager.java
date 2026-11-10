@@ -76,9 +76,14 @@ public class DatabaseManager implements AutoCloseable {
         return connection;
     }
 
-    /** Runs every statement in /db/schema.sql (idempotent: CREATE ... IF NOT EXISTS). */
+    /** Creates the workspace tables from /db/schema.sql (idempotent: CREATE ... IF NOT EXISTS). */
     public void initSchema() throws DataAccessException {
-        List<String> statements = readSqlScript("/db/schema.sql");
+        initSchema("/db/schema.sql");
+    }
+
+    /** Runs every statement of a SQL script on the classpath, all in one transaction. */
+    public void initSchema(String resource) throws DataAccessException {
+        List<String> statements = readSqlScript(resource);
         inTransaction(conn -> {
             try (Statement st = conn.createStatement()) {
                 for (String sql : statements) {
@@ -87,7 +92,7 @@ public class DatabaseManager implements AutoCloseable {
             }
             return null;
         });
-        LOG.info("Schema ready (" + statements.size() + " statements)");
+        LOG.info(resource + " ready (" + statements.size() + " statements)");
     }
 
     /** Character-stream reading of a SQL resource, split on ';' and stripped of comments. */

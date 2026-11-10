@@ -23,12 +23,13 @@ Built with **Core Java 17+, JavaFX 21, JDBC + SQLite, Maven, java.util.logging a
 * **Maven 3.8+** (IntelliJ and Eclipse ship with Maven built in)
 * Internet on the first build (Maven downloads JavaFX, SQLite JDBC and JUnit)
 
-No database server is needed — SQLite is an embedded database stored in `data/trustlend.db`.
+No database server is needed — SQLite is an embedded database. Logins are stored in `data/accounts.db`
+and every account gets its own workspace file `data/workspaces/user-<id>.db`.
 
 ### Command line
 ```bash
 mvn clean javafx:run          # build and launch the app
-mvn test                      # run the 25 unit/integration tests
+mvn test                      # run the 35 unit/integration tests
 mvn clean package             # builds target/trustlend-1.0.0-all.jar
 java -jar target/trustlend-1.0.0-all.jar
 ```
@@ -47,15 +48,45 @@ java -jar target/trustlend-1.0.0-all.jar
 1. Install the *Extension Pack for Java*. Open the folder.
 2. In the *Maven* side panel: `trustlend → Plugins → javafx → run`.
 
-### Login
-| Username | Password  |
-|----------|-----------|
-| `admin`  | `admin123`|
+### Accounts and demo mode
+TrustLend is multi-user. On the sign-in screen click **"New here? Create an account"**. Every account
+gets its **own private, empty workspace** (a separate SQLite file), so a professor, a teammate and you
+can each use the app on the same computer without seeing each other's vendors or loans.
 
-On first start the app creates the database and seeds a **realistic demo community of 36 vendors**
-across five Delhi markets (≈4,000 transactions, 50 loans, 50+ vouches, 12 weeks of score history).
-Delete the `data/` folder to start over. Set `db.seed.demo=false` in `data/config.properties`
-to start with an empty database.
+A new workspace starts empty. From the dashboard's welcome card (or *Settings → Your workspace*):
+
+| Button | What it does |
+|---|---|
+| **Load demo data** | Fills the workspace with a realistic community of 36 vendors across five Delhi markets (≈4,000 transactions, ~50 loans, 50+ vouches, 12 weeks of score history) |
+| **+ Add my first vendor** | Start from zero with your own vendors |
+| **? Take the tour** | A 9-step guided walkthrough that opens each screen, highlights it and suggests something to try. Always available in the sidebar |
+| **Clear workspace…** | Deletes everything in *your* workspace so you can start over (other accounts are untouched) |
+
+Model settings (factor weights, lending policy) are shared by all accounts on the computer.
+Delete the whole `data/` folder to remove every account and start completely fresh.
+
+**Upgrading from the first version:** if an old `data/trustlend.db` exists, it is moved into an
+account **`admin` / `admin123`** on the first start, so no data is lost.
+
+### Demo script for the professor (about 8 minutes)
+
+**Before the demo:** create an account, press **Load demo data**, maximise the window. If you will
+use a projector, switch on **presentation mode** (frame icon, bottom of the sidebar).
+
+| # | Show | Say |
+|---|------|-----|
+| 1 | Sidebar → **Story mode: Meet Sunil**. Press → to move through the 5 chapters | "50 million street vendors have no credit history, so banks refuse them and moneylenders charge ~60% a year. Watch one chai seller go from *declined* to a fair loan. Every number is computed live by our scoring engine." |
+| 2 | **Dashboard**: KPIs, score distribution, risk bands | "This is a lender's view of 36 vendors." |
+| 3 | **Vendors** → double-click a low-scoring vendor | "The score is explainable: four factors and plain-English reasons." |
+| 4 | On the profile: drag the **What if…** sliders, then *Best case* and *Worst case* | "The whole engine, including trust propagation, re-runs on a hypothetical copy. Nothing is saved." |
+| 5 | **₹ New loan** → *Check eligibility* | Approved / lower amount / declined decision card with reasons, terms and the week-by-week repayment schedule. |
+| 6 | **Loans** → select a loan → **Mark defaulted** | The *ripple effect* dialog: the borrower's score drops, so do the scores of everyone who vouched. *Show on the network* pulses them red on the graph. |
+| 7 | **Trust Network**: hover a vendor, then *Find strongest trust path* | "Vouches form a weighted directed graph; trust flows like PageRank (Dijkstra for the path)." |
+| 8 | Profile → **Trust certificate** → *Print / Save as PDF* | A one-page certificate the vendor could show a lender. |
+| 9 | Code: DAO + JDBC transactions, `TrustScoreEngine`, `TrustGraph<N>`, `PngWriter`; run `mvn test` | Map to the syllabus (table below). |
+| 10 | Let the professor **create their own account** | Their workspace starts empty and private; *Take the tour* explains everything. |
+
+Keyboard in story mode: → / Space next, ← back, Esc exit.
 
 ---
 
@@ -75,6 +106,21 @@ to start with an empty database.
 
 Every data-entry dialog validates input **before closing**: the offending field turns red and the
 error appears inline (custom `ValidationException` carries the field name).
+
+### New in this version
+* **Story mode — "Meet Sunil"**: a full-screen, animated 5-chapter story (no credit history → steady sales → vouches →
+  first loan repaid → approved), computed by the real engine on a small self-contained community (`StoryScenario`).
+  Works even in an empty workspace and never touches the database.
+* **Loan decision card**: applying for a loan gives an instant APPROVED / APPROVED · LOWER AMOUNT / DECLINED card with
+  the reasons, terms (rate, weekly instalment, total interest) and the full repayment schedule (`LoanService.decide`).
+* **What-if simulator** on every vendor profile: sliders for more weeks of daily sales, on-time instalments and new
+  vouches, plus a "defaults" switch; shows the projected score and loan offer (`ScoreService.project`).
+* **Trust certificate**: a printable one-page certificate; save as PNG (own encoder, `io/PngWriter`) or print /
+  "Microsoft Print to PDF" (`javafx.print.PrinterJob`).
+* **Default ripple**: after *Mark defaulted*, a dialog shows how the borrower and their vouchers lost trust, and the
+  network view pulses the affected vendors.
+* **Polish**: line icons drawn with `SVGPath`, animated KPI counters, auto-fit + hover highlighting on the network,
+  **dark mode** (`styles/dark.css`) and **presentation mode** (`styles/presentation.css`), remembered with `java.util.prefs`.
 
 ### Vouch “what-if” simulator
 In *Add vouch* press **Preview impact** to see how the vouchee’s score would change
@@ -131,7 +177,7 @@ Interest = `base (18%) + (650 − score) × 0.02`, clamped to 12–30% p.a.
  DAO interfaces (dao)  ◄── JDBC implementations (dao.jdbc, AbstractJdbcDao template)
      │
      ▼
- DatabaseManager (db) ── JDBC ── SQLite file data/trustlend.db
+ DatabaseManager (db) ── JDBC ── SQLite: data/accounts.db + one data/workspaces/user-<id>.db per account
 ```
 
 ```
@@ -147,19 +193,20 @@ src/main/java/com/trustlend
 ├── graph/                     TrustGraph<N>: propagation, BFS, Dijkstra
 ├── engine/  engine/factor/    TrustScoreEngine, ScoringFactor strategy + 3 factors
 ├── service/                   Vendor/Loan/Vouch/Transaction/Score/Auth/Analytics services,
-│                              DemoDataSeeder, AppContext (composition root)
+│                              DemoDataSeeder, AppContext (per-workspace composition root),
+│                              AccountManager (accounts DB + one workspace DB per user)
 ├── io/                        CsvExporter<T>, CsvTransactionImporter, BackupService, ReportWriter
 ├── util/                      Validators, Formats, PasswordHasher
 └── ui/                        MainWindow, LoginView, Ui helpers, views, dialogs, components
 src/main/resources
-├── config.properties  logging.properties  db/schema.sql  styles/app.css
-src/test/java                 25 JUnit 5 tests (graph, engine, DAO+SQLite, utilities, file I/O)
+├── config.properties  logging.properties  db/schema.sql  db/accounts.sql  styles/app.css
+src/test/java                 35 JUnit 5 tests (graph, engine, DAO+SQLite, utilities, file I/O, PNG, accounts, story/what-if/loan decisions)
 ```
 
 ### Database schema
-`users`, `vendors`, `transactions`, `loans`, `repayments`, `vouches`, `score_history` —
+Accounts database: `users`. Each workspace database: `vendors`, `transactions`, `loans`, `repayments`, `vouches`, `score_history` —
 with foreign keys (`ON DELETE CASCADE`), `CHECK` constraints (positive amounts, strength 1–5,
-no self-vouch), `UNIQUE` constraints (phone, voucher+vouchee) and indexes. See `src/main/resources/db/schema.sql`.
+no self-vouch), `UNIQUE` constraints (phone, voucher+vouchee) and indexes. See `src/main/resources/db/schema.sql` and `db/accounts.sql`.
 
 ---
 
