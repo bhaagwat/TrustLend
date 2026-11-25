@@ -52,9 +52,15 @@ public class VendorsView extends BaseView {
         Button add = new Button("+  Add vendor");
         add.getStyleClass().add("btn-primary");
         add.setOnAction(e -> addVendor());
-        setHeader("Vendors", "Everyone in the TrustLend community, with their live trust score", add);
+        boolean lender = shell.user().isLender();
+        if (lender) {
+            setHeader("Find a borrower", "Every borrower in the community with their live trust score. "
+                    + "Search by name, phone, market or TrustLend ID (e.g. TL-1030).");
+        } else {
+            setHeader("Borrowers", "Everyone in the TrustLend community, with their live trust score", add);
+        }
 
-        search.setPromptText("Search name, phone, market…");
+        search.setPromptText(lender ? "Name, phone, market or TL-ID…" : "Search name, phone, market, TL-ID…");
         search.getStyleClass().add("search-field");
         bandFilter.getItems().add("All bands");
         bandFilter.getItems().addAll((Object[]) RiskBand.values());
@@ -92,7 +98,8 @@ public class VendorsView extends BaseView {
         }
         table.getSelectionModel().selectedItemProperty().addListener((o, a, v) ->
                 toggle.setText(v != null && !v.isActive() ? "Activate" : "Deactivate"));
-        HBox actions = Ui.row(8, open, edit, toggle, Ui.hSpacer(), delete);
+        HBox actions = lender ? Ui.row(8, open, Ui.label("Double-click a borrower to see their score, evidence and loan offer",
+                "muted", "small")) : Ui.row(8, open, edit, toggle, Ui.hSpacer(), delete);
 
         VBox body = new VBox(14, filters, table, actions);
         javafx.scene.layout.VBox.setVgrow(table, javafx.scene.layout.Priority.ALWAYS);
@@ -204,7 +211,8 @@ public class VendorsView extends BaseView {
             edit.setOnAction(e -> editVendor(row.getItem()));
             MenuItem delete = new MenuItem("Delete…");
             delete.setOnAction(e -> deleteVendor(row.getItem()));
-            ContextMenu menu = new ContextMenu(open, network, edit, new SeparatorMenuItem(), delete);
+            ContextMenu menu = shell.user().isLender() ? new ContextMenu(open, network)
+                    : new ContextMenu(open, network, edit, new SeparatorMenuItem(), delete);
             row.contextMenuProperty().bind(javafx.beans.binding.Bindings.when(row.emptyProperty())
                     .then((ContextMenu) null).otherwise(menu));
             row.opacityProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(
@@ -222,7 +230,8 @@ public class VendorsView extends BaseView {
                         || v.getName().toLowerCase().contains(text)
                         || v.getPhone().contains(text)
                         || v.getMarketArea().toLowerCase().contains(text)
-                        || v.getCity().toLowerCase().contains(text))
+                        || v.getCity().toLowerCase().contains(text)
+                        || com.trustlend.service.CommunityService.trustId(v.getId()).toLowerCase().contains(text))
                         && (!(band instanceof RiskBand b) || v.getRiskBand() == b)
                         && (!(cat instanceof VendorCategory c) || v.getCategory() == c));
         countLabel.setText(filtered.size() + " of " + master.size() + " vendors");

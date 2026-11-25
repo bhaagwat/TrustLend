@@ -12,6 +12,13 @@ import com.trustlend.dao.jdbc.JdbcScoreHistoryDao;
 import com.trustlend.dao.jdbc.JdbcTransactionDao;
 import com.trustlend.dao.jdbc.JdbcVendorDao;
 import com.trustlend.dao.jdbc.JdbcVouchDao;
+import com.trustlend.dao.UploadDao;
+import com.trustlend.dao.IncomeDao;
+import com.trustlend.dao.UserDao;
+import com.trustlend.dao.jdbc.JdbcIncomeDao;
+import com.trustlend.dao.jdbc.JdbcUploadDao;
+import com.trustlend.dao.jdbc.JdbcUserDao;
+import com.trustlend.config.AppConfig;
 import com.trustlend.db.DatabaseManager;
 import com.trustlend.engine.EngineSettings;
 import com.trustlend.exception.DataAccessException;
@@ -24,9 +31,9 @@ import java.time.LocalDate;
 import java.util.logging.Logger;
 
 /**
- * Composition root for one user's workspace: builds the object graph (DB → DAOs → services) by hand.
+ * Composition root for the shared community database: builds the object graph (DB → DAOs → services) by hand.
  * This is "manual dependency injection" — every class receives what it needs via its constructor.
- * A new context is created at every login (see {@link AccountManager#openWorkspace}).
+ * One context is opened when the app starts ({@link #open()}) and shared by every role that logs in.
  */
 public final class AppContext implements AutoCloseable {
 
@@ -39,6 +46,11 @@ public final class AppContext implements AutoCloseable {
     private final LoanDao loanDao;
     private final RepaymentDao repaymentDao;
     private final VouchDao vouchDao;
+    private final UserDao userDao;
+    private final UploadDao uploadDao;
+    private final IncomeDao incomeDao;
+    private final AuthService authService;
+    private final CommunityService communityService;
 
     private final ScoreService scoreService;
     private final VendorService vendorService;
@@ -63,8 +75,11 @@ public final class AppContext implements AutoCloseable {
         repaymentDao = new JdbcRepaymentDao(db);
         vouchDao = new JdbcVouchDao(db);
         ScoreHistoryDao historyDao = new JdbcScoreHistoryDao(db);
+        userDao = new JdbcUserDao(db);
+        uploadDao = new JdbcUploadDao(db);
+        incomeDao = new JdbcIncomeDao(db);
 
-        scoreService = new ScoreService(vendorDao, transactionDao, loanDao, repaymentDao, vouchDao, historyDao, settings);
+        scoreService = new ScoreService(vendorDao, transactionDao, loanDao, repaymentDao, vouchDao, historyDao, incomeDao, settings);
         vendorService = new VendorService(vendorDao, scoreService);
         loanService = new LoanService(db, loanDao, repaymentDao, transactionDao, vendorDao, scoreService);
         vouchService = new VouchService(vouchDao, vendorDao, scoreService);
@@ -72,13 +87,38 @@ public final class AppContext implements AutoCloseable {
         analyticsService = new AnalyticsService(vendorService, loanService, repaymentDao, vouchDao);
         backupService = new BackupService(db, vendorDao, transactionDao, loanDao, repaymentDao, vouchDao);
         importer = new CsvTransactionImporter(vendorDao);
+        authService = new AuthService(userDao);
+        communityService = new CommunityService(db, authService, userDao, vendorDao, loanDao, repaymentDao,
+                transactionDao, uploadDao, incomeDao, vouchDao, vendorService, loanService, scoreService);
+        loanService.setLenderNames(id -> {
+            try {
+                return userDao.findById(id).map(com.trustlend.model.User::getDisplayName).orElse("Lender #" + id);
+            } catch (DataAccessException e) {
+                return "Lender #" + id;
+            }
+        });
     }
 
-    /** Optionally seeds demo data into an empty workspace, then refreshes overdue loans and scores. */
+    /**
+     * Opens the shared community database (data/community.db). On the very first start it is filled
+     * with the demo community and the demo accounts (HQ, lenders, borrowers).
+     */
+    public static AppContext open() throws DataAccessException {
+        AppConfig cfg = AppConfig.getInstance();
+        Path file = cfg.getPath("db.path");
+        DatabaseManager db = DatabaseManager.forFile(file);
+        db.initSchema();
+        AppContext ctx = new AppContext(db, EngineSettings.fromConfig(cfg), file);
+        ctx.startUp(true);
+        return ctx;
+    }
+
+    /** Optionally seeds the demo community into an empty database, then refreshes overdue loans and scores. */
     public void startUp(boolean seedDemo) throws DataAccessException {
         LocalDate today = LocalDate.now();
         if (seedDemo && isEmpty()) {
             seedDemo(today);
+            DemoAccounts.create(this);
         }
         loanService.refreshOverdue(today);
         scoreService.recalculateAll(today);
@@ -112,12 +152,30 @@ public final class AppContext implements AutoCloseable {
         scoreService.backfillHistory(today, 12, 2);
     }
 
+    /**
+     * HQ only: wipes the whole community (every vendor and every borrower/lender account; HQ accounts stay)
+     * and loads the demo community and demo accounts again.
+     */
+    public void resetToDemo() throws DataAccessException {
+        clearWorkspace();
+        db.inTransaction(conn -> {
+            try (Statement st = conn.createStatement()) {
+                st.executeUpdate("DELETE FROM users WHERE role IN ('BORROWER', 'LENDER')");
+            }
+            return null;
+        });
+        seedDemo(LocalDate.now());
+        DemoAccounts.create(this);
+        loanService.refreshOverdue(LocalDate.now());
+        scoreService.recalculateAll(LocalDate.now());
+    }
+
     /** Deletes every vendor; foreign keys with ON DELETE CASCADE remove all their related rows. */
     public void clearWorkspace() throws DataAccessException {
         db.inTransaction(conn -> {
             try (Statement st = conn.createStatement()) {
                 st.executeUpdate("DELETE FROM vendors");
-                st.executeUpdate("DELETE FROM sqlite_sequence");   // ids start from 1 again
+                st.executeUpdate("DELETE FROM sqlite_sequence WHERE name <> 'users'");   // ids start from 1 again
             }
             return null;
         });
@@ -125,7 +183,7 @@ public final class AppContext implements AutoCloseable {
         LOG.info("Workspace cleared");
     }
 
-    /** The workspace file on disk (null for in-memory databases). */
+    /** The database file on disk (null for in-memory databases). */
     public Path databaseFile() {
         return databaseFile;
     }
@@ -139,6 +197,11 @@ public final class AppContext implements AutoCloseable {
     public AnalyticsService analytics() { return analyticsService; }
     public BackupService backup() { return backupService; }
     public CsvTransactionImporter importer() { return importer; }
+    public AuthService auth() { return authService; }
+    public CommunityService community() { return communityService; }
+    UserDao users() { return userDao; }
+    LoanDao loanDao() { return loanDao; }
+    RepaymentDao repaymentDao() { return repaymentDao; }
 
     @Override
     public void close() {

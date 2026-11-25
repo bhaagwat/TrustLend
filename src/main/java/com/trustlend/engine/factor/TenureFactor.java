@@ -7,11 +7,14 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Stability of the business itself: years trading (self-reported) and months on the platform. */
+/**
+ * Stability: years trading (self-reported), months on the platform, and declared income.
+ * Income verified by a lender or HQ adds up to 0.15; self-declared income only 0.05 until verified.
+ */
 public class TenureFactor extends AbstractFactor {
 
     public TenureFactor() {
-        super("tenure", "Business tenure");
+        super("tenure", "Tenure & income");
     }
 
     @Override
@@ -25,6 +28,14 @@ public class TenureFactor extends AbstractFactor {
         List<String> reasons = new ArrayList<>();
         reasons.add(v.getYearsInBusiness() + " year(s) in business");
         reasons.add(months < 1 ? "Joined TrustLend this month" : months + " month(s) on TrustLend");
-        return new FactorResult(value, reasons);
+        if (profile.verifiedIncome() > 0) {
+            value += 0.15;
+            reasons.add("Verified income of " + com.trustlend.util.Formats.inr(profile.verifiedIncome()) + " a month");
+        } else if (profile.declaredIncome() > 0) {
+            value += 0.05;
+            reasons.add("Self-declared income of " + com.trustlend.util.Formats.inr(profile.declaredIncome())
+                    + " a month (counts more once verified)");
+        }
+        return new FactorResult(clamp01(value), reasons);
     }
 }

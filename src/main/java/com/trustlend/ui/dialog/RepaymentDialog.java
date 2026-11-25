@@ -19,6 +19,7 @@ public class RepaymentDialog extends FormDialog<Repayment> {
     private final Loan loan;
     private final TextField amount = new TextField();
     private final DatePicker paid = new DatePicker(LocalDate.now());
+    private com.trustlend.model.User lender;
 
     public RepaymentDialog(AppContext ctx, Loan loan) {
         super("Record repayment", "Loan #" + loan.getId() + " · " + loan.getVendorName(), "Record payment");
@@ -37,9 +38,26 @@ public class RepaymentDialog extends FormDialog<Repayment> {
         addRow("Paid on", "payment date", paid);
     }
 
+    /**
+     * Reported by a lender: the payment is saved as "awaiting the borrower" and counts half until the
+     * borrower confirms it. (Recorded by HQ it is confirmed at once.)
+     */
+    public RepaymentDialog asLender(com.trustlend.model.User user) {
+        if (user != null && user.isLender()) {
+            lender = user;
+            Label note = Ui.label("The borrower will be asked to confirm this payment. Until they do, it counts "
+                    + "half towards their score.", "offer-no");
+            note.setWrapText(true);
+            addFullRow(note);
+        }
+        return this;
+    }
+
     @Override
     protected Repayment submit() throws Exception {
         double a = Validators.parseAmount("amount", amount.getText());
-        return ctx.loans().recordRepayment(loan.getId(), a, paid.getValue());
+        return lender != null
+                ? ctx.community().reportRepayment(lender, loan.getId(), a, paid.getValue())
+                : ctx.loans().recordRepayment(loan.getId(), a, paid.getValue());
     }
 }

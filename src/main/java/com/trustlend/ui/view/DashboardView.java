@@ -45,6 +45,9 @@ public class DashboardView extends BaseView {
     private final VBox activityList = new VBox(4);
     private final VBox factorList = new VBox(10);
     private final VBox welcome = new VBox(12);
+    private final com.trustlend.ui.component.ImpactBanner impact = new com.trustlend.ui.component.ImpactBanner();
+    private final com.trustlend.ui.component.MarketHeatmap heatmap;
+    private final VBox heatCard;
 
     public DashboardView(AppContext ctx, MainWindow shell) {
         super(ctx, shell);
@@ -86,8 +89,11 @@ public class DashboardView extends BaseView {
         }
         HBox bottom = new HBox(16, topCard, factorsCard, activityCard);
 
+        heatmap = new com.trustlend.ui.component.MarketHeatmap(shell::showMarket);
+        heatCard = Ui.titledCard("Trust by market  ·  click a market to see it on the network", heatmap);
+
         buildWelcome();
-        VBox content = new VBox(18, welcome, kpis, charts, bottom);
+        VBox content = new VBox(18, welcome, impact, kpis, charts, heatCard, bottom);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         setCenter(scroll);
@@ -97,7 +103,7 @@ public class DashboardView extends BaseView {
     private void buildWelcome() {
         Button demo = new Button("Load demo data");
         demo.getStyleClass().add("btn-accent");
-        demo.setOnAction(e -> shell.loadDemoData());
+        demo.setOnAction(e -> shell.resetCommunity());
         Button own = new Button("+  Add my first vendor");
         own.getStyleClass().add("btn-primary");
         own.setOnAction(e -> shell.navigate(MainWindow.Page.VENDORS));
@@ -129,6 +135,10 @@ public class DashboardView extends BaseView {
             welcome.setVisible(empty);
             welcome.setManaged(empty);
             AnalyticsService.Stats s = ctx.analytics().compute();
+            impact.update(ctx.analytics().impact());
+            heatmap.update(ctx.analytics().markets());
+            heatCard.setVisible(s.vendors() > 0);
+            heatCard.setManaged(s.vendors() > 0);
             int healthy = s.bandCounts().get(RiskBand.EXCELLENT) + s.bandCounts().get(RiskBand.GOOD);
             vendorsCard.animateTo(s.vendors(), v -> String.valueOf(Math.round(v)),
                     healthy + " rated Good or better · " + s.vouches() + " vouches");

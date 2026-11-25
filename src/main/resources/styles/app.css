@@ -521,3 +521,140 @@
 .certificate .gauge-caption { -fx-fill: #6b6f80; }
 .certificate .gauge-track { -fx-stroke: #eeebe3; }
 .certificate .factor-bar > .track { -fx-background-color: #eeebe3; }
+
+/* ================================================================ splash screen */
+.splash { -fx-background-color: radial-gradient(center 50% 45%, radius 75%, #2b2f63, #12152a 70%, #0b2e2c); }
+.splash-mark {
+    -fx-background-color: linear-gradient(to bottom right, #f7b733, #f29f05);
+    -fx-background-radius: 26;
+    -fx-min-width: 96; -fx-min-height: 96; -fx-max-width: 96; -fx-max-height: 96;
+    -fx-effect: dropshadow(gaussian, #f29f0599, 40, 0.3, 0, 0);
+}
+.splash-mark-text { -fx-text-fill: #1c2140; -fx-font-size: 54px; -fx-font-weight: bold; }
+.splash-title { -fx-text-fill: white; -fx-font-size: 44px; -fx-font-weight: bold; }
+.splash-tagline { -fx-text-fill: #cfd3ee; -fx-font-size: 17px; }
+.splash-status { -fx-text-fill: #8f95bb; -fx-font-size: 12.5px; }
+.splash-progress > .track { -fx-background-color: #ffffff1f; -fx-background-radius: 4; -fx-background-insets: 0; }
+.splash-progress > .bar { -fx-background-color: linear-gradient(to right, #14b8a6, #f7b733); -fx-background-radius: 4; -fx-background-insets: 0; -fx-padding: 3; }
+
+/* ================================================================ dashboard impact banner */
+.impact-banner {
+    -fx-background-color: linear-gradient(to right, #1c2140, #2b2f63 55%, #0f766e);
+    -fx-background-radius: 16;
+    -fx-padding: 22 26 22 26;
+    -fx-effect: dropshadow(gaussian, #1c214033, 22, 0.2, 0, 6);
+}
+.impact-banner .icon { -fx-stroke: #f7b733; }
+.impact-kicker { -fx-text-fill: #f7b733; -fx-font-size: 11px; -fx-font-weight: bold; }
+.impact-title { -fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold; }
+.impact-note { -fx-text-fill: #b8bcd8; -fx-font-size: 11.5px; }
+.impact-value { -fx-text-fill: white; -fx-font-size: 30px; -fx-font-weight: bold; }
+.impact-caption { -fx-text-fill: #cfd3ee; -fx-font-size: 12px; }
+.impact-divider { -fx-min-width: 1; -fx-max-width: 1; -fx-background-color: #ffffff26; -fx-min-height: 48; }
+
+/* ================================================================ market heat map */
+.heat-tile {
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-padding: 14 16 14 16;
+    -fx-cursor: hand;
+}
+.heat-excellent { -fx-background-color: linear-gradient(to bottom right, #dcf3e6, #f4fbf7); -fx-border-color: #9fdcbb; }
+.heat-good      { -fx-background-color: linear-gradient(to bottom right, #e5f4e8, #f6fbf7); -fx-border-color: #b5e0c0; }
+.heat-fair      { -fx-background-color: linear-gradient(to bottom right, #fff3d1, #fffaee); -fx-border-color: #f3d78c; }
+.heat-poor      { -fx-background-color: linear-gradient(to bottom right, #ffe7d1, #fff6ee); -fx-border-color: #f6c08f; }
+.heat-high-risk { -fx-background-color: linear-gradient(to bottom right, #fde2df, #fff5f4); -fx-border-color: #f2aaa3; }
+.heat-tile:hover { -fx-effect: dropshadow(gaussian, #1c214026, 16, 0.2, 0, 4); }
+.heat-market { -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1f2333; }
+.heat-score { -fx-font-size: 30px; -fx-font-weight: bold; -fx-text-fill: #1f2333; }
+.heat-sub { -fx-font-size: 11.5px; -fx-text-fill: #4b5063; }
+.heat-bar { -fx-min-height: 8; -fx-max-height: 8; -fx-background-color: #00000012; -fx-background-radius: 4; }
+
+/* ================================================================ login: who are you? */
+.role-card {
+    -fx-background-color: -tl-card;
+    -fx-border-color: -tl-line;
+    -fx-border-width: 1.5;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 12;
+    -fx-alignment: top-left;
+    -fx-cursor: hand;
+}
+.role-card:hover { -fx-border-color: -tl-teal; }
+.role-card:selected { -fx-border-color: -tl-teal; -fx-border-width: 2.5; -fx-background-color: -tl-teal-soft; }
+.role-card .icon { -fx-stroke: -tl-teal; }
+.role-title { -fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: -tl-text; }
+.role-sub { -fx-font-size: 11px; -fx-text-fill: -tl-muted; }
+.demo-chip {
+    -fx-background-color: -tl-saffron-soft;
+    -fx-text-fill: #7a5200;
+    -fx-background-radius: 16;
+    -fx-padding: 5 12 5 12;
+    -fx-font-size: 12px;
+    -fx-font-weight: normal;
+    -fx-cursor: hand;
+}
+.demo-chip:hover { -fx-background-color: #ffe4a8; }
+
+/* ================================================================ sidebar badges */
+.nav-button.nav-badged { -fx-text-fill: #ffd98a; }
+
+/* ================================================================ borrower screens */
+.borrower-alert {
+    -fx-background-color: -tl-saffron-soft;
+    -fx-border-color: -tl-saffron;
+    -fx-border-width: 0 0 0 4;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 14 18 14 18;
+}
+.borrower-alert .icon { -fx-stroke: -tl-saffron; }
+.tip-row { -fx-padding: 4 0 4 0; }
+.tip-row .icon { -fx-stroke: -tl-saffron; }
+.claim-card {
+    -fx-background-color: -tl-card;
+    -fx-border-color: -tl-line;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 14;
+}
+.claim-card .btn-primary .icon { -fx-stroke: white; }
+.claim-card .btn-danger .icon { -fx-stroke: -tl-red; }
+.upload-result { -fx-background-color: -tl-paper; -fx-background-radius: 12; -fx-padding: 14; }
+
+/* ================================================================ evidence */
+.evidence-row { -fx-padding: 6 10 6 10; -fx-background-radius: 9; }
+.evidence-row-full { -fx-background-color: #0f9d5810; }
+.evidence-row-half { -fx-background-color: #f4b40014; }
+.evidence-row-none { -fx-background-color: #d9302510; }
+.evidence-row-info { -fx-background-color: #1a56db0d; }
+.evidence-row-full .icon { -fx-stroke: #0f9d58; }
+.evidence-row-half .icon { -fx-stroke: #c98a00; }
+.evidence-row-none .icon { -fx-stroke: #d93025; }
+.evidence-row-info .icon { -fx-stroke: #1a56db; }
+.evidence-text { -fx-text-fill: -tl-text; }
+.evidence-full { -fx-background-color: #dcf3e6; -fx-text-fill: #0b7a43; }
+.evidence-half { -fx-background-color: #fff3d1; -fx-text-fill: #a36f00; }
+.evidence-none { -fx-background-color: #fde2df; -fx-text-fill: #b3261e; }
+.evidence-info { -fx-background-color: #e1effe; -fx-text-fill: #1a56db; }
+
+/* ================================================================ quality meter (uploads, lender credibility) */
+.quality-meter { -fx-pref-height: 12; }
+.quality-meter > .track { -fx-background-color: #eeebe3; -fx-background-radius: 6; -fx-background-insets: 0; }
+.quality-meter > .bar { -fx-background-radius: 6; -fx-background-insets: 0; -fx-padding: 6; }
+.quality-full > .bar { -fx-background-color: #0f9d58; }
+.quality-half > .bar { -fx-background-color: #f4b400; }
+.quality-none > .bar { -fx-background-color: #d93025; }
+
+/* ================================================================ HQ */
+.queue-item {
+    -fx-background-color: -tl-paper;
+    -fx-background-radius: 10;
+    -fx-padding: 12;
+}
+
+/* ================================================================ phone access */
+.qr-box { -fx-background-color: white; -fx-background-radius: 14; -fx-padding: 6; -fx-border-color: -tl-line; -fx-border-radius: 14; }
+.phone-url { -fx-font-size: 18px; -fx-font-weight: bold; -fx-font-family: "Monospaced"; }

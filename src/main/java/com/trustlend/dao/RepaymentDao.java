@@ -17,4 +17,14 @@ public interface RepaymentDao extends GenericDao<Repayment> {
 
     /** loanId → total repaid, for every loan in one GROUP BY query. */
     Map<Long, Double> totalsByLoan() throws DataAccessException;
+
+    List<Repayment> findByStatus(Repayment.Verification status) throws DataAccessException;
+
+    /** One borrower's repayments in a given state, e.g. those still waiting for their confirmation. */
+    List<Repayment> findByStatusForVendor(long vendorId, Repayment.Verification status) throws DataAccessException;
+
+    /** Everything a lender has reported. */
+    List<Repayment> findReportedBy(long userId) throws DataAccessException;
+
+    void updateStatus(long repaymentId, Repayment.Verification status, String note) throws DataAccessException;
 }

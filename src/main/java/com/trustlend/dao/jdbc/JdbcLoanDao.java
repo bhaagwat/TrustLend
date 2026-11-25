@@ -24,7 +24,7 @@ public class JdbcLoanDao extends AbstractJdbcDao<Loan> implements LoanDao {
 
     @Override
     protected Loan mapRow(ResultSet rs) throws SQLException {
-        return new Loan(
+        Loan loan = new Loan(
                 rs.getLong("id"),
                 rs.getLong("vendor_id"),
                 rs.getDouble("principal"),
@@ -34,18 +34,21 @@ public class JdbcLoanDao extends AbstractJdbcDao<Loan> implements LoanDao {
                 SqlDates.fromSql(rs.getString("due_date")),
                 LoanStatus.valueOf(rs.getString("status")),
                 rs.getInt("score_at_issue"));
+        loan.setLenderId(rs.getLong("lender_id"));
+        loan.setOrigin(Loan.Origin.valueOf(rs.getString("origin")));
+        return loan;
     }
 
     @Override
     protected String insertSql() {
         return "INSERT INTO loans (vendor_id, principal, interest_rate, tenure_weeks, issue_date, due_date, "
-                + "status, score_at_issue) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                + "status, score_at_issue, lender_id, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     }
 
     @Override
     protected String updateSql() {
         return "UPDATE loans SET vendor_id = ?, principal = ?, interest_rate = ?, tenure_weeks = ?, issue_date = ?, "
-                + "due_date = ?, status = ?, score_at_issue = ? WHERE id = ?";
+                + "due_date = ?, status = ?, score_at_issue = ?, lender_id = ?, origin = ? WHERE id = ?";
     }
 
     @Override
@@ -58,12 +61,15 @@ public class JdbcLoanDao extends AbstractJdbcDao<Loan> implements LoanDao {
         ps.setString(6, SqlDates.toSql(l.getDueDate()));
         ps.setString(7, l.getStatus().name());
         ps.setInt(8, l.getScoreAtIssue());
+        if (l.getLenderId() > 0) ps.setLong(9, l.getLenderId());
+        else ps.setNull(9, java.sql.Types.INTEGER);
+        ps.setString(10, l.getOrigin().name());
     }
 
     @Override
     protected void bindUpdate(PreparedStatement ps, Loan l) throws SQLException {
         bindInsert(ps, l);
-        ps.setLong(9, l.getId());
+        ps.setLong(11, l.getId());
     }
 
     @Override
@@ -81,6 +87,22 @@ public class JdbcLoanDao extends AbstractJdbcDao<Loan> implements LoanDao {
         db.execute(conn -> {
             try (PreparedStatement ps = conn.prepareStatement("UPDATE loans SET status = ? WHERE id = ?")) {
                 ps.setString(1, status.name());
+                ps.setLong(2, loanId);
+                return ps.executeUpdate();
+            }
+        });
+    }
+
+    @Override
+    public List<Loan> findByLender(long lenderId) throws DataAccessException {
+        return query("SELECT * FROM loans WHERE lender_id = ? ORDER BY issue_date DESC, id DESC", lenderId);
+    }
+
+    @Override
+    public void assignLender(long loanId, long lenderId) throws DataAccessException {
+        db.execute(conn -> {
+            try (PreparedStatement ps = conn.prepareStatement("UPDATE loans SET lender_id = ? WHERE id = ?")) {
+                ps.setLong(1, lenderId);
                 ps.setLong(2, loanId);
                 return ps.executeUpdate();
             }

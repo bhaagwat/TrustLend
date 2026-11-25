@@ -74,4 +74,54 @@ public class AnalyticsService {
                 open, outstanding, disbursed, onTime, vouchDao.count(), defaulted,
                 ranked.subList(0, Math.min(5, ranked.size())));
     }
+
+    // ------------------------------------------------------------------ social impact
+
+    /** Typical informal moneylender rate (~5% a month), used to estimate what borrowers saved. */
+    public static final double MONEYLENDER_RATE = 60.0;
+
+    /**
+     * The good the portfolio has done: money lent, people financed, on-time payments, and the
+     * interest saved compared with borrowing the same amounts from a moneylender
+     * (simple interest over each loan's tenure, at {@link #MONEYLENDER_RATE} vs the TrustLend rate).
+     */
+    public record Impact(double lent, int vendorsFinanced, int loans, double interestSaved, long onTimePayments) { }
+
+    public Impact impact() throws DataAccessException {
+        List<Loan> loans = loanService.listLoans();
+        double lent = 0;
+        double saved = 0;
+        java.util.Set<Long> borrowers = new java.util.HashSet<>();
+        for (Loan l : loans) {
+            lent += l.getPrincipal();
+            borrowers.add(l.getVendorId());
+            double years = l.getTenureWeeks() / 52.0;
+            saved += l.getPrincipal() * Math.max(0, MONEYLENDER_RATE - l.getInterestRate()) / 100 * years;
+        }
+        long onTime = repaymentDao.findAll().stream().filter(Repayment::isOnTime).count();
+        return new Impact(lent, borrowers.size(), loans.size(), saved, onTime);
+    }
+
+    // ------------------------------------------------------------------ markets
+
+    /** Trust in one market area, for the dashboard heat map. */
+    public record MarketStat(String market, int vendors, double averageScore, Map<RiskBand, Integer> bands,
+                             String topVendor) { }
+
+    public List<MarketStat> markets() throws DataAccessException {
+        Map<String, List<Vendor>> byMarket = new java.util.TreeMap<>();
+        for (Vendor v : vendorService.ranked()) {
+            byMarket.computeIfAbsent(v.getMarketArea(), k -> new java.util.ArrayList<>()).add(v);
+        }
+        List<MarketStat> out = new java.util.ArrayList<>();
+        byMarket.forEach((market, list) -> {
+            Map<RiskBand, Integer> bands = new EnumMap<>(RiskBand.class);
+            for (RiskBand b : RiskBand.values()) bands.put(b, 0);
+            list.forEach(v -> bands.merge(v.getRiskBand(), 1, Integer::sum));
+            double avg = list.stream().mapToInt(Vendor::getCurrentScore).average().orElse(0);
+            out.add(new MarketStat(market, list.size(), avg, bands, list.get(0).getName()));   // ranked: best first
+        });
+        out.sort(java.util.Comparator.comparingDouble(MarketStat::averageScore).reversed());
+        return out;
+    }
 }

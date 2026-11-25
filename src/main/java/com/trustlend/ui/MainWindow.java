@@ -8,6 +8,13 @@ import com.trustlend.ui.component.Icons;
 import com.trustlend.service.StoryScenario;
 import com.trustlend.ui.component.Toast;
 import com.trustlend.ui.view.BaseView;
+import com.trustlend.ui.view.BorrowerHomeView;
+import com.trustlend.ui.view.ConfirmationsView;
+import com.trustlend.ui.view.UploadView;
+import com.trustlend.ui.view.MyLoansView;
+import com.trustlend.ui.view.LenderHomeView;
+import com.trustlend.ui.view.VerificationView;
+import com.trustlend.ui.view.MembersView;
 import com.trustlend.ui.view.DashboardView;
 import com.trustlend.ui.view.DataView;
 import com.trustlend.ui.view.LoansView;
@@ -46,11 +53,21 @@ public class MainWindow extends StackPane {
 
     /** Navigation targets. */
     public enum Page {
+        // borrower
+        MY_SCORE("My TrustLend", "award"),
+        CONFIRM("Confirmations", "check"),
+        UPLOAD("Upload proof", "upload"),
+        MY_LOANS("My loans", "loans"),
+        // lender
+        LENDER_HOME("Lender desk", "dashboard"),
+        // HQ (and shared)
         DASHBOARD("Dashboard", "dashboard"),
-        VENDORS("Vendors", "vendors"),
+        VENDORS("Borrowers", "vendors"),
         NETWORK("Trust Network", "network"),
         LOANS("Loans", "loans"),
         TRANSACTIONS("Transactions", "transactions"),
+        VERIFY("Verification", "shield"),
+        MEMBERS("Members", "vendors"),
         DATA("Reports & Data", "data"),
         SETTINGS("Settings", "settings");
 
@@ -64,6 +81,8 @@ public class MainWindow extends StackPane {
     }
 
     private final AppContext ctx;
+    private final User user;
+    private final Page home;
     private final Runnable onLogout;
     private final BorderPane frame = new BorderPane();
     private final Map<Page, BaseView> views = new EnumMap<>(Page.class);
@@ -75,6 +94,8 @@ public class MainWindow extends StackPane {
 
     public MainWindow(AppContext ctx, User user, Runnable onLogout) {
         this.ctx = ctx;
+        this.user = user;
+        this.home = user.isBorrower() ? Page.MY_SCORE : user.isLender() ? Page.LENDER_HOME : Page.DASHBOARD;
         this.onLogout = onLogout;
         frame.setLeft(buildSidebar(user));
         getChildren().add(frame);
@@ -88,7 +109,17 @@ public class MainWindow extends StackPane {
         busyOverlay.setVisible(false);
         getChildren().add(busyOverlay);
 
-        navigate(Page.DASHBOARD);
+        navigate(home);
+        updateBadges();
+    }
+
+    /** The logged-in user (borrower, lender or HQ): views use it to show the right actions. */
+    public User user() {
+        return user;
+    }
+
+    public Page home() {
+        return home;
     }
 
     private VBox buildSidebar(User user) {
@@ -99,16 +130,35 @@ public class MainWindow extends StackPane {
         brand.setAlignment(Pos.CENTER_LEFT);
 
         VBox nav = new VBox(3);
-        nav.getChildren().add(Ui.label("OVERVIEW", "nav-section"));
-        addNav(nav, Page.DASHBOARD);
-        addNav(nav, Page.VENDORS);
-        addNav(nav, Page.NETWORK);
-        nav.getChildren().add(Ui.label("LENDING", "nav-section"));
-        addNav(nav, Page.LOANS);
-        addNav(nav, Page.TRANSACTIONS);
-        nav.getChildren().add(Ui.label("SYSTEM", "nav-section"));
-        addNav(nav, Page.DATA);
-        addNav(nav, Page.SETTINGS);
+        if (user.isBorrower()) {
+            nav.getChildren().add(Ui.label("MY ACCOUNT", "nav-section"));
+            addNav(nav, Page.MY_SCORE, "My TrustLend");
+            addNav(nav, Page.CONFIRM, "Confirmations");
+            addNav(nav, Page.UPLOAD, "Upload proof");
+            addNav(nav, Page.MY_LOANS, "My loans");
+            nav.getChildren().add(Ui.label("COMMUNITY", "nav-section"));
+            addNav(nav, Page.NETWORK, "Trust Network");
+        } else if (user.isLender()) {
+            nav.getChildren().add(Ui.label("LENDING", "nav-section"));
+            addNav(nav, Page.LENDER_HOME, "Lender desk");
+            addNav(nav, Page.VENDORS, "Find a borrower");
+            addNav(nav, Page.LOANS, "My loans");
+            nav.getChildren().add(Ui.label("COMMUNITY", "nav-section"));
+            addNav(nav, Page.NETWORK, "Trust Network");
+        } else {
+            nav.getChildren().add(Ui.label("OVERVIEW", "nav-section"));
+            addNav(nav, Page.DASHBOARD, "Dashboard");
+            addNav(nav, Page.VENDORS, "Borrowers");
+            addNav(nav, Page.NETWORK, "Trust Network");
+            nav.getChildren().add(Ui.label("LENDING", "nav-section"));
+            addNav(nav, Page.LOANS, "All loans");
+            addNav(nav, Page.TRANSACTIONS, "Transactions");
+            nav.getChildren().add(Ui.label("HQ", "nav-section"));
+            addNav(nav, Page.VERIFY, "Verification");
+            addNav(nav, Page.MEMBERS, "Members");
+            addNav(nav, Page.DATA, "Reports & Data");
+            addNav(nav, Page.SETTINGS, "Settings");
+        }
 
         // keep one item always selected
         navGroup.selectedToggleProperty().addListener((obs, old, now) -> {
@@ -117,7 +167,8 @@ public class MainWindow extends StackPane {
 
         Avatar avatar = new Avatar(user.getFullName(), initials(user.getFullName()), 34);
         VBox who = new VBox(1, Ui.label(user.getFullName(), "user-name"),
-                Ui.label(user.getRole() == User.Role.ADMIN ? "Administrator" : "Loan officer", "user-role"));
+                Ui.label(user.isBorrower() ? "Borrower · " + com.trustlend.service.CommunityService.trustId(user.getVendorId())
+                        : user.isLender() ? user.getOrganisation() : "TrustLend HQ", "user-role"));
         Button logout = new Button(null, Icons.of("logout", 18));
         logout.getStyleClass().addAll("nav-button", "icon-button");
         logout.setTooltip(new Tooltip("Log out"));
@@ -154,15 +205,21 @@ public class MainWindow extends StackPane {
         HBox toggles = new HBox(6, Ui.label("VIEW", "nav-section"), Ui.hSpacer(), darkToggle, presentToggle);
         toggles.setAlignment(Pos.CENTER_LEFT);
 
-        VBox demo = new VBox(8, storyButton, tourButton, toggles);
+        Button phoneButton = new Button("Open on a phone", Icons.of("phone", 18));
+        phoneButton.getStyleClass().add("tour-button");
+        phoneButton.setMaxWidth(Double.MAX_VALUE);
+        phoneButton.setOnAction(e -> PhoneAccess.show(ctx, this));
+
+        VBox demo = new VBox(8, storyButton, tourButton, phoneButton, toggles);
         demo.setPadding(new javafx.geometry.Insets(0, 0, 10, 0));
         VBox sidebar = new VBox(brand, nav, Ui.vSpacer(), demo, userBox);
         sidebar.getStyleClass().add("sidebar");
         return sidebar;
     }
 
-    private void addNav(VBox nav, Page page) {
-        ToggleButton b = new ToggleButton(page.title, Icons.of(page.icon, 18));
+    private void addNav(VBox nav, Page page, String title) {
+        ToggleButton b = new ToggleButton(title, Icons.of(page.icon, 18));
+        b.setUserData(title);
         b.getStyleClass().add("nav-button");
         b.setMaxWidth(Double.MAX_VALUE);
         b.setToggleGroup(navGroup);
@@ -181,13 +238,43 @@ public class MainWindow extends StackPane {
 
     /** Views are created lazily the first time they are opened, then cached. */
     public void navigate(Page page) {
+        if (!navButtons.containsKey(page)) page = home;     // not available for this kind of user
         BaseView view = views.computeIfAbsent(page, this::createView);
         navButtons.get(page).setSelected(true);
         show(view);
     }
 
+    /** Shows "(2)" next to Confirmations / Verification when something is waiting. */
+    public void updateBadges() {
+        try {
+            if (navButtons.containsKey(Page.CONFIRM)) {
+                badge(Page.CONFIRM, ctx.community().pendingClaims(user.getVendorId()).size());
+            }
+            if (navButtons.containsKey(Page.VERIFY)) {
+                badge(Page.VERIFY, ctx.community().queue().size());
+            }
+        } catch (Exception ignored) {
+            // badges are a convenience
+        }
+    }
+
+    private void badge(Page page, int count) {
+        ToggleButton b = navButtons.get(page);
+        String title = (String) b.getUserData();
+        b.setText(count > 0 ? title + "  (" + count + ")" : title);
+        b.getStyleClass().remove("nav-badged");
+        if (count > 0) b.getStyleClass().add("nav-badged");
+    }
+
     private BaseView createView(Page page) {
         return switch (page) {
+            case MY_SCORE -> new BorrowerHomeView(ctx, this);
+            case CONFIRM -> new ConfirmationsView(ctx, this);
+            case UPLOAD -> new UploadView(ctx, this);
+            case MY_LOANS -> new MyLoansView(ctx, this);
+            case LENDER_HOME -> new LenderHomeView(ctx, this);
+            case VERIFY -> new VerificationView(ctx, this);
+            case MEMBERS -> new MembersView(ctx, this);
             case DASHBOARD -> new DashboardView(ctx, this);
             case VENDORS -> new VendorsView(ctx, this);
             case NETWORK -> new NetworkView(ctx, this);
@@ -199,6 +286,11 @@ public class MainWindow extends StackPane {
     }
 
     public void openVendor(long vendorId) {
+        if (user.isBorrower()) {                    // borrowers only ever see their own profile
+            if (vendorId == user.getVendorId()) navigate(Page.MY_SCORE);
+            else toastInfo("Other borrowers' profiles are private");
+            return;
+        }
         navButtons.get(Page.VENDORS).setSelected(true);
         show(new VendorProfileView(ctx, this, vendorId));
     }
@@ -222,6 +314,7 @@ public class MainWindow extends StackPane {
 
     /** Refresh every cached view (after data changes elsewhere). */
     public void refreshAll() {
+        updateBadges();
         views.values().forEach(BaseView::refresh);
         if (frame.getCenter() instanceof BaseView v && !views.containsValue(v)) {
             v.refresh();
@@ -241,7 +334,8 @@ public class MainWindow extends StackPane {
     /** Opens the step-by-step tour card (bottom-right); the app stays fully usable underneath. */
     public void startTour() {
         if (tour != null) getChildren().remove(tour);
-        tour = new GuidedTour(this, () -> {
+        tour = new GuidedTour(this, user.isBorrower() ? GuidedTour.BORROWER_STEPS
+                : user.isLender() ? GuidedTour.LENDER_STEPS : GuidedTour.HQ_STEPS, () -> {
             getChildren().remove(tour);
             tour = null;
         });
@@ -265,28 +359,17 @@ public class MainWindow extends StackPane {
         });
     }
 
-    /** Fills an empty workspace with the demo community, then offers the tour. */
-    public void loadDemoData() {
-        runBusy("Creating 36 vendors with 5 months of history…", ctx::loadDemoData, n -> {
-            refreshAll();
-            toast(n + " demo vendors loaded with transactions, loans and vouches");
-            if (tour == null && Ui.confirm("Demo data ready", "Would you like a guided tour of TrustLend now?", "Start tour")) {
-                startTour();
-            }
-        });
-    }
-
-    /** Deletes everything in this account's workspace (after confirmation). */
-    public void clearWorkspace() {
-        if (!Ui.confirm("Clear workspace", "Delete ALL vendors, transactions, loans, repayments and vouches in your "
-                + "workspace? Other accounts are not affected. This cannot be undone.", "Delete everything")) return;
-        runBusy("Clearing your workspace…", () -> {
-            ctx.clearWorkspace();
+    /** HQ: wipes the community (all borrowers, lenders and their data) and loads the demo community again. */
+    public void resetCommunity() {
+        if (!Ui.confirm("Reset to demo data", "Delete ALL borrowers, lenders, loans, repayments, uploads and vouches, "
+                + "and load the demo community again? HQ accounts are kept. This cannot be undone.", "Reset everything")) return;
+        runBusy("Rebuilding the demo community…", () -> {
+            ctx.resetToDemo();
             return null;
         }, ignored -> {
             navigate(Page.DASHBOARD);
             refreshAll();
-            toastInfo("Workspace cleared - you are starting from zero");
+            toast("Demo community restored: 36 borrowers, 3 lenders, demo logins ready");
         });
     }
 
@@ -332,6 +415,12 @@ public class MainWindow extends StackPane {
             toast(successMessage.get());
             if (after != null) after.run();
         });
+    }
+
+    /** Opens the trust network with one market highlighted (from the dashboard heat map). */
+    public void showMarket(String market) {
+        navigate(Page.NETWORK);
+        ((NetworkView) views.get(Page.NETWORK)).highlightMarket(market);
     }
 
     /** Opens the network centred on {@code vendorId} and pulses the given vendors red (default ripple). */

@@ -58,6 +58,7 @@ public class NetworkView extends BaseView {
     private static final Color IN_COLOR = Color.web("#f29f05");
     private static final Color OUT_COLOR = Color.web("#0f766e");
     private static final Color EDGE_COLOR = Color.web("#5b6185");
+    private static final Color FLOW_COLOR = Color.web("#f2a516");
 
     private final Pane canvas = new Pane();
     private final Group zoomGroup = new Group(canvas);
@@ -71,6 +72,16 @@ public class NetworkView extends BaseView {
 
     private final Map<Long, NodeView> nodes = new HashMap<>();
     private final List<EdgeView> edges = new ArrayList<>();
+    private final javafx.scene.control.CheckBox flowToggle = new javafx.scene.control.CheckBox("Live trust flow");
+    /** Moves the trust-flow particles; does nothing while this page is not on screen. */
+    private final javafx.animation.AnimationTimer flowTimer = new javafx.animation.AnimationTimer() {
+        @Override
+        public void handle(long now) {
+            if (!flowToggle.isSelected() || getScene() == null || !isVisible() || getParent() == null) return;
+            double t = now / 1e9;
+            for (EdgeView e : edges) e.flow(t);
+        }
+    };
     private final Map<Long, Vendor> vendors = new HashMap<>();
     private TrustGraph<Long> graph = new TrustGraph<>();
     private Long selected;
@@ -111,7 +122,12 @@ public class NetworkView extends BaseView {
 
         marketFilter.valueProperty().addListener((o, a, b) -> applyHighlight());
         HBox legend = buildLegend();
-        HBox toolbar = Ui.row(12, Ui.label("Highlight market", "form-label"), marketFilter, Ui.hSpacer(), legend);
+        flowToggle.setSelected(true);
+        flowToggle.setTooltip(new Tooltip("Glowing dots travel along each vouch: trust flowing from voucher to vouchee. "
+                + "Thicker, faster streams are stronger vouches."));
+        flowToggle.selectedProperty().addListener((o, a, on) -> edges.forEach(e -> e.particle.setVisible(on)));
+        HBox toolbar = Ui.row(12, Ui.label("Highlight market", "form-label"), marketFilter, flowToggle, Ui.hSpacer(), legend);
+        flowTimer.start();
 
         VBox left = new VBox(12, toolbar, viewport, stats);
         VBox.setVgrow(viewport, Priority.ALWAYS);
@@ -225,6 +241,7 @@ public class NetworkView extends BaseView {
             if (a == null || b == null) continue;
             EdgeView ev = new EdgeView(a, b, e.weight());
             edges.add(ev);
+            ev.particle.setVisible(flowToggle.isSelected());
             edgeLayer.getChildren().add(ev);
         }
     }
@@ -328,6 +345,11 @@ public class NetworkView extends BaseView {
                 new javafx.animation.KeyValue(zoomGroup.translateXProperty(), tx),
                 new javafx.animation.KeyValue(zoomGroup.translateYProperty(), ty)));
         t.play();
+    }
+
+    /** Selects a market in the "Highlight market" box (used by the dashboard heat map). */
+    public void highlightMarket(String market) {
+        if (marketFilter.getItems().contains(market)) marketFilter.setValue(market);
     }
 
     /** Red "shock waves" around the given vendors, used to show how a default spreads. */
@@ -648,7 +670,9 @@ public class NetworkView extends BaseView {
         final double weight;
         final Line line = new Line();
         final Polygon arrow = new Polygon();
+        final Circle particle;
         private final double baseWidth;
+        private final double phase = Math.random();
 
         EdgeView(NodeView from, NodeView to, double weight) {
             this.from = from;
@@ -658,7 +682,11 @@ public class NetworkView extends BaseView {
             line.setStrokeWidth(baseWidth);
             line.setMouseTransparent(true);
             arrow.setMouseTransparent(true);
-            getChildren().addAll(line, arrow);
+            particle = new Circle(2.4 + weight * 2.2, FLOW_COLOR);
+            particle.setEffect(new javafx.scene.effect.DropShadow(8, FLOW_COLOR));
+            particle.setMouseTransparent(true);
+            particle.setOpacity(0);
+            getChildren().addAll(line, arrow, particle);
             from.attached.add(this);
             to.attached.add(this);
             setMouseTransparent(true);
@@ -682,7 +710,16 @@ public class NetworkView extends BaseView {
                     ex - ux * size * 1.6 + uy * size * 0.8, ey - uy * size * 1.6 - ux * size * 0.8);
         }
 
+        /** Places the glowing particle along the edge; stronger vouches flow faster. */
+        void flow(double seconds) {
+            double t = (seconds * (0.18 + weight * 0.32) + phase) % 1.0;
+            particle.setCenterX(line.getStartX() + (line.getEndX() - line.getStartX()) * t);
+            particle.setCenterY(line.getStartY() + (line.getEndY() - line.getStartY()) * t);
+            particle.setOpacity(Math.sin(Math.PI * t));     // fade in at the voucher, out at the vouchee
+        }
+
         void style(Color color, double opacity) {
+            particle.setFill(color == EDGE_COLOR ? FLOW_COLOR : color);
             line.setStroke(color);
             arrow.setFill(color);
             line.setStrokeWidth(baseWidth);

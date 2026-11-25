@@ -20,6 +20,13 @@ public class Loan implements Identifiable, Serializable {
     private LocalDate dueDate;
     private LoanStatus status;
     private int scoreAtIssue;
+    private long lenderId;                      // user id of the lender; 0 = TrustLend community fund
+    private Origin origin = Origin.PLATFORM;
+
+    /** PLATFORM = disbursed through TrustLend; REPORTED = an outside loan a lender told us about. */
+    public enum Origin { PLATFORM, REPORTED }
+
+    private transient String lenderName;
 
     /** Filled by the service layer for display. */
     private transient double amountRepaid;
@@ -82,5 +89,11 @@ public class Loan implements Identifiable, Serializable {
     public double getAmountRepaid() { return amountRepaid; }
     public void setAmountRepaid(double amountRepaid) { this.amountRepaid = amountRepaid; }
     public String getVendorName() { return vendorName; }
+    public long getLenderId() { return lenderId; }
+    public void setLenderId(long lenderId) { this.lenderId = lenderId; }
+    public Origin getOrigin() { return origin; }
+    public void setOrigin(Origin origin) { this.origin = origin; }
+    public String getLenderName() { return lenderName == null ? "TrustLend fund" : lenderName; }
+    public void setLenderName(String lenderName) { this.lenderName = lenderName; }
     public void setVendorName(String vendorName) { this.vendorName = vendorName; }
 }

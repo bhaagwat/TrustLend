@@ -47,6 +47,24 @@ public class CertificateDialog extends Dialog<Void> {
     private final VBox certificate;
     private final Data data;
 
+    /** Gathers everything for one vendor's certificate and shows it. */
+    public static void open(com.trustlend.service.AppContext ctx, long vendorId) {
+        try {
+            Vendor vendor = ctx.vendors().get(vendorId);
+            ScoreBreakdown s = ctx.scores().scoreOf(vendorId).orElseThrow(() -> new IllegalStateException("No score yet"));
+            java.util.Map<Long, String> names = new java.util.HashMap<>();
+            ctx.vendors().findAll().forEach(v -> names.put(v.getId(), v.getName()));
+            List<String> vouchers = ctx.vouches().received(vendorId).stream()
+                    .map(v -> names.getOrDefault(v.getVoucherId(), "Vendor #" + v.getVoucherId())).toList();
+            var w = ctx.scores().getSettings();
+            new CertificateDialog(new Data(vendor, s, ctx.loans().offerFor(vendorId), vouchers,
+                    ctx.transactions().forVendor(vendorId).size(), ctx.loans().loansOf(vendorId).size(),
+                    w.wConsistency(), w.wRepayment(), w.wTenure(), w.wNetwork())).showAndWait();
+        } catch (Exception e) {
+            Ui.error("Could not create the certificate", e);
+        }
+    }
+
     public CertificateDialog(Data data) {
         this.data = data;
         setTitle("Trust certificate — " + data.vendor().getName());
@@ -95,7 +113,8 @@ public class CertificateDialog extends Dialog<Void> {
         Label certifies = Ui.label("This certifies the community credit standing of", "cert-small");
         Label name = Ui.label(v.getName(), "cert-name");
         Label role = Ui.label(v.getCategory().getLabel() + "  ·  " + v.getMarketArea() + ", " + v.getCity(), "cert-role");
-        Label since = Ui.label(v.getYearsInBusiness() + " years in business  ·  on TrustLend since "
+        Label since = Ui.label(com.trustlend.service.CommunityService.trustId(v.getId()) + "  ·  "
+                + v.getYearsInBusiness() + " years in business  ·  on TrustLend since "
                 + Formats.date(v.getJoinDate()), "cert-small");
         VBox who = new VBox(4, certifies, name, role, since);
         who.setAlignment(Pos.CENTER);

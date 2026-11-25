@@ -310,6 +310,7 @@ public class StoryMode extends StackPane {
         FadeTransition box = new FadeTransition(Duration.millis(250), outcome);
         box.setToValue(1);
         new ParallelTransition(box, scale, fade).play();
+        if (o.approved()) com.trustlend.ui.component.Confetti.burst(this);
     }
 
     /** Draws Sunil and the first {@code vouchers} of his three vouchers (-1 hides the diagram). */

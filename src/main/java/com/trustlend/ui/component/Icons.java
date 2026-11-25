@@ -39,6 +39,9 @@ public final class Icons {
             Map.entry("award", circle(12, 9, 6) + " M8.5 14l-1.5 7 5-3 5 3-1.5-7"),
             Map.entry("check", "M5 12.5l4.5 4.5L19 7.5"),
             Map.entry("cross", "M6 6l12 12 M18 6L6 18"),
+            Map.entry("upload", "M12 15V4 M7.5 8.5L12 4l4.5 4.5 M4 15v5h16v-5"),
+            Map.entry("phone", "M7 2.5h10v19H7z M10.5 18.5h3"),
+            Map.entry("shield", "M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z M8.5 12l2.5 2.5 4.5-5"),
             Map.entry("spark", "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M6 6l2.5 2.5 M15.5 15.5L18 18 M6 18l2.5-2.5 M15.5 8.5L18 6"));
 
     /** An icon of the given size in pixels, e.g. {@code Icons.of("vendors", 18)}. */

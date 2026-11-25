@@ -19,12 +19,19 @@ import java.util.Set;
 public record VendorProfile(Vendor vendor,
                             List<Transaction> transactions,
                             List<Loan> loans,
-                            List<Repayment> repayments) {
+                            List<Repayment> repayments,
+                            double verifiedIncome,
+                            double declaredIncome) {
 
     public VendorProfile {
         transactions = List.copyOf(transactions);
         loans = List.copyOf(loans);
         repayments = List.copyOf(repayments);
+    }
+
+    /** A profile without any income declaration. */
+    public VendorProfile(Vendor vendor, List<Transaction> transactions, List<Loan> loans, List<Repayment> repayments) {
+        this(vendor, transactions, loans, repayments, 0, 0);
     }
 
     public long vendorId() {
@@ -62,6 +69,6 @@ public record VendorProfile(Vendor vendor,
         for (Repayment r : repayments) {
             if (!r.getPaidDate().isAfter(date) && loanIds.contains(r.getLoanId())) reps.add(r);
         }
-        return new VendorProfile(vendor, txns, pastLoans, reps);
+        return new VendorProfile(vendor, txns, pastLoans, reps, verifiedIncome, declaredIncome);
     }
 }

@@ -113,4 +113,20 @@ class DemoFeaturesTest {
         assertEquals(10_000 * (1 + 0.18 * 10 / 52.0), sum, 0.05);
         assertEquals(LocalDate.of(2026, 1, 8), rows.get(0).dueDate());
     }
+
+    @Test
+    void impactAndMarketsAddUp() throws Exception {
+        AnalyticsService.Impact impact = ctx.analytics().impact();
+        AnalyticsService.Stats stats = ctx.analytics().compute();
+        assertEquals(stats.totalDisbursed(), impact.lent(), 0.01);
+        assertTrue(impact.interestSaved() > 0, "borrowing at TrustLend rates beats 60% a year");
+        assertTrue(impact.vendorsFinanced() > 0 && impact.vendorsFinanced() <= stats.vendors());
+
+        List<AnalyticsService.MarketStat> markets = ctx.analytics().markets();
+        assertEquals(5, markets.size());
+        assertEquals(stats.vendors(), markets.stream().mapToInt(AnalyticsService.MarketStat::vendors).sum());
+        for (int i = 1; i < markets.size(); i++) {
+            assertTrue(markets.get(i - 1).averageScore() >= markets.get(i).averageScore());   // best market first
+        }
+    }
 }

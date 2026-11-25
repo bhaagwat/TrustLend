@@ -61,3 +61,5 @@
 /* the decision banner keeps light pastel colours, so its texts stay dark */
 .decision-banner .decision-headline { -fx-text-fill: #1f2333; }
 .decision-banner .decision-sub { -fx-text-fill: #4b5063; }
+.demo-chip { -fx-text-fill: #ffd98a; }
+.quality-meter > .track { -fx-background-color: #2a3052; }

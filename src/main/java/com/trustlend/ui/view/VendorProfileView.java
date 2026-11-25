@@ -72,6 +72,7 @@ public class VendorProfileView extends BaseView {
     private final TableView<Transaction> txnTable = new TableView<>();
     private final Map<Long, Vendor> vendorsById = new HashMap<>();
     private final WhatIfPanel whatIf;
+    private final com.trustlend.ui.component.EvidencePanel evidence;
 
     public VendorProfileView(AppContext ctx, MainWindow shell, long vendorId) {
         super(ctx, shell);
@@ -82,8 +83,8 @@ public class VendorProfileView extends BaseView {
                 "Regularity and stability of weekly sales over the last 12 weeks");
         repaymentBar = new FactorBar("Repayment history", "repayment", settings.wRepayment(),
                 "On-time instalments, repaid loans, overdue and defaulted loans");
-        tenureBar = new FactorBar("Business tenure", "tenure", settings.wTenure(),
-                "Years trading plus months on TrustLend");
+        tenureBar = new FactorBar("Tenure & income", "tenure", settings.wTenure(),
+                "Years trading, months on TrustLend, and declared / verified income");
         networkBar = new FactorBar("Community trust", "network", settings.wNetwork(),
                 "Trust flowing in from vouching vendors (weighted by their own trust)");
 
@@ -106,6 +107,10 @@ public class VendorProfileView extends BaseView {
 
         HBox top = new HBox(16, scoreCard, breakdown, why);
         whatIf = new WhatIfPanel(ctx, vendorId);
+        evidence = new com.trustlend.ui.component.EvidencePanel(ctx, vendorId, shell.user(), () -> {
+            refresh();
+            shell.toast("Income verified — the score now counts it fully");
+        });
 
         // ---- tabs
         historyChart.setLegendVisible(false);
@@ -130,7 +135,8 @@ public class VendorProfileView extends BaseView {
         VBox givBox = new VBox(6, Ui.label("Vouches for", "section-title"), given);
         HBox.setHgrow(recBox, Priority.ALWAYS);
         HBox.setHgrow(givBox, Priority.ALWAYS);
-        VBox vouchTab = new VBox(10, new HBox(16, recBox, givBox), Ui.row(8, addVouch, removeVouch));
+        VBox vouchTab = shell.user().isLender() ? new VBox(10, new HBox(16, recBox, givBox))
+                : new VBox(10, new HBox(16, recBox, givBox), Ui.row(8, addVouch, removeVouch));
         vouchTab.setPadding(new Insets(14));
 
         buildLoanTable();
@@ -146,7 +152,7 @@ public class VendorProfileView extends BaseView {
         VBox tabCard = Ui.card(tabs);
         tabCard.setPadding(new Insets(6));
 
-        VBox content = new VBox(16, top, whatIf, tabCard);
+        VBox content = new VBox(16, top, evidence, whatIf, tabCard);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         setCenter(scroll);
@@ -180,13 +186,16 @@ public class VendorProfileView extends BaseView {
         certificate.setOnAction(e -> openCertificate());
         Button loan = new Button("₹  New loan");
         loan.getStyleClass().add("btn-accent");
-        loan.setOnAction(e -> new LoanDialog(ctx, List.of(vendor), vendor).showAndWait()
+        loan.setOnAction(e -> new LoanDialog(ctx, List.of(vendor), vendor).asLender(shell.user()).showAndWait()
                 .ifPresent(l -> shell.recalculateScores(() -> "Loan #" + l.getId() + " issued to " + vendor.getName())));
 
         Avatar avatar = new Avatar(vendor.getName(), vendor.getInitials(), 46);
         VBox text = new VBox(2, Ui.label(vendor.getName() + (vendor.isActive() ? "" : "  (inactive)"), "page-title"),
-                Ui.label(vendor.describeRole() + "  ·  +91 " + vendor.getPhone(), "page-subtitle"));
-        HBox header = new HBox(12, back, avatar, text, Ui.hSpacer(), txn, network, certificate, loan);
+                Ui.label(com.trustlend.service.CommunityService.trustId(vendorId) + "  ·  " + vendor.describeRole()
+                        + "  ·  +91 " + vendor.getPhone(), "page-subtitle"));
+        HBox header = shell.user().isLender()
+                ? new HBox(12, back, avatar, text, Ui.hSpacer(), network, certificate, loan)
+                : new HBox(12, back, avatar, text, Ui.hSpacer(), txn, network, certificate, loan);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(0, 0, 20, 0));
         setTop(header);
@@ -229,6 +238,7 @@ public class VendorProfileView extends BaseView {
             offerLabel.getStyleClass().removeAll("offer-ok", "offer-no");
             offerLabel.getStyleClass().add(offer.maxAmount() > 0 ? "offer-ok" : "offer-no");
             whatIf.refresh();
+            evidence.refresh();
 
             fillHistory();
             fillSales();
@@ -242,18 +252,7 @@ public class VendorProfileView extends BaseView {
     }
 
     private void openCertificate() {
-        try {
-            ScoreBreakdown s = ctx.scores().scoreOf(vendorId).orElseThrow(() -> new IllegalStateException("No score yet"));
-            List<String> vouchers = ctx.vouches().received(vendorId).stream()
-                    .map(v -> vendorsById.containsKey(v.getVoucherId()) ? vendorsById.get(v.getVoucherId()).getName() : "Vendor #" + v.getVoucherId())
-                    .toList();
-            var w = ctx.scores().getSettings();
-            new CertificateDialog(new CertificateDialog.Data(vendor, s, ctx.loans().offerFor(vendorId), vouchers,
-                    ctx.transactions().forVendor(vendorId).size(), ctx.loans().loansOf(vendorId).size(),
-                    w.wConsistency(), w.wRepayment(), w.wTenure(), w.wNetwork())).showAndWait();
-        } catch (Exception e) {
-            Ui.error("Could not create the certificate", e);
-        }
+        CertificateDialog.open(ctx, vendorId);
     }
 
     private void fillHistory() throws Exception {

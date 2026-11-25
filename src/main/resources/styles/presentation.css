@@ -67,5 +67,21 @@
 .story-outcome-headline { -fx-font-size: 24px; }
 .story-outcome-detail { -fx-font-size: 16.8px; }
 .story-step { -fx-font-size: 14.4px; }
+.splash-mark-text { -fx-font-size: 64.8px; }
+.splash-title { -fx-font-size: 52.8px; }
+.splash-tagline { -fx-font-size: 20.4px; }
+.splash-status { -fx-font-size: 15px; }
+.impact-kicker { -fx-font-size: 13.2px; }
+.impact-title { -fx-font-size: 21.6px; }
+.impact-note { -fx-font-size: 13.8px; }
+.impact-value { -fx-font-size: 36px; }
+.impact-caption { -fx-font-size: 14.4px; }
+.heat-market { -fx-font-size: 16.8px; }
+.heat-score { -fx-font-size: 36px; }
+.heat-sub { -fx-font-size: 13.8px; }
+.role-title { -fx-font-size: 16.8px; }
+.role-sub { -fx-font-size: 13.2px; }
+.demo-chip { -fx-font-size: 14.4px; }
+.phone-url { -fx-font-size: 21.6px; }
 .nav-button { -fx-padding: 12 14 12 14; }
 .table-row-cell { -fx-cell-size: 50; }

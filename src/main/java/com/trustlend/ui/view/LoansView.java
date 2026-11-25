@@ -56,7 +56,25 @@ public class LoansView extends BaseView {
         Button newLoan = new Button("₹  New loan");
         newLoan.getStyleClass().add("btn-accent");
         newLoan.setOnAction(e -> issueLoan());
-        setHeader("Loans", "Micro-loans priced by trust score — better score, cheaper credit", newLoan);
+        if (shell.user().isLender()) {
+            Button report = new Button("Report a past loan");
+            report.getStyleClass().add("btn-ghost");
+            report.setOnAction(e -> {
+                try {
+                    new com.trustlend.ui.dialog.ReportLoanDialog(ctx, shell.user(), null).showAndWait()
+                            .ifPresent(l -> {
+                                shell.refreshAll();
+                                shell.toast("Reported — " + l.getVendorName() + " will be asked to confirm it");
+                            });
+                } catch (Exception ex) {
+                    Ui.error("Could not open the form", ex);
+                }
+            });
+            setHeader("My loans", "Loans you gave through TrustLend or reported. Payments you record wait for the "
+                    + "borrower's confirmation.", report, newLoan);
+        } else {
+            setHeader("All loans", "Every loan in the community — by TrustLend's fund and by member lenders", newLoan);
+        }
 
         allButton.setToggleGroup(filterGroup);
         allButton.getStyleClass().add("btn-ghost");
@@ -184,7 +202,14 @@ public class LoansView extends BaseView {
             }
         });
 
-        table.getColumns().addAll(List.of(id, vendor, principal, rate, score, issued, due, progress, status));
+        TableColumn<Loan, String> lenderCol = new TableColumn<>("LENDER");
+        lenderCol.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().getLenderName()
+                + (c.getValue().getOrigin() == Loan.Origin.REPORTED ? " · reported" : "")));
+        if (shell.user().isLender()) {
+            table.getColumns().addAll(List.of(id, vendor, principal, rate, score, issued, due, progress, status));
+        } else {
+            table.getColumns().addAll(List.of(id, vendor, lenderCol, principal, rate, score, issued, due, progress, status));
+        }
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPlaceholder(new Label("No loans in this view"));
         table.setRowFactory(tv -> {
@@ -209,7 +234,7 @@ public class LoansView extends BaseView {
     @Override
     public void refresh() {
         try {
-            List<Loan> loans = ctx.loans().listLoans();
+            List<Loan> loans = shell.user().isLender() ? ctx.loans().loansBy(shell.user().getId()) : ctx.loans().listLoans();
             loans.sort(Comparator.comparing(Loan::getIssueDate).reversed());
             master.setAll(loans);
             Map<LoanStatus, Integer> counts = new EnumMap<>(LoanStatus.class);
@@ -229,7 +254,7 @@ public class LoansView extends BaseView {
     private void issueLoan() {
         try {
             List<Vendor> vendors = ctx.vendors().findAll().stream().filter(Vendor::isActive).toList();
-            new LoanDialog(ctx, vendors, null).showAndWait().ifPresent(l ->
+            new LoanDialog(ctx, vendors, null).asLender(shell.user()).showAndWait().ifPresent(l ->
                     shell.recalculateScores(() -> "Loan #" + l.getId() + " issued for " + Formats.inr(l.getPrincipal())));
         } catch (Exception e) {
             Ui.error("Could not open loan form", e);
@@ -237,8 +262,10 @@ public class LoansView extends BaseView {
     }
 
     private void recordRepayment(Loan loan) {
-        new RepaymentDialog(ctx, loan).showAndWait().ifPresent(r -> shell.recalculateScores(() ->
-                "Payment of " + Formats.inr(r.getAmount()) + " recorded" + (r.isOnTime() ? " (on time)" : " (late)")));
+        new RepaymentDialog(ctx, loan).asLender(shell.user()).showAndWait().ifPresent(r -> shell.recalculateScores(() ->
+                "Payment of " + Formats.inr(r.getAmount()) + (r.getStatus() == Repayment.Verification.PENDING
+                        ? " reported — waiting for " + loan.getVendorName() + " to confirm"
+                        : " recorded" + (r.isOnTime() ? " (on time)" : " (late)"))));
     }
 
     private void markDefaulted(Loan loan) {
@@ -275,8 +302,9 @@ public class LoansView extends BaseView {
             ListView<String> list = new ListView<>();
             int n = 1;
             for (Repayment r : reps) {
-                list.getItems().add(String.format("%2d.  %s   paid %s   (due %s)  %s", n++, Formats.inr(r.getAmount()),
-                        Formats.date(r.getPaidDate()), Formats.date(r.getDueDate()), r.isOnTime() ? "✔ on time" : "⚠ late"));
+                list.getItems().add(String.format("%2d.  %s   paid %s   (due %s)  %s  ·  %s", n++, Formats.inr(r.getAmount()),
+                        Formats.date(r.getPaidDate()), Formats.date(r.getDueDate()), r.isOnTime() ? "✔ on time" : "⚠ late",
+                        r.getStatus().getLabel()));
             }
             if (reps.isEmpty()) list.getItems().add("No repayments yet");
             list.setPrefSize(520, 320);

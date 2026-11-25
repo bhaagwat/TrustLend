@@ -13,4 +13,9 @@ public interface LoanDao extends GenericDao<Loan> {
     List<Loan> findByStatus(LoanStatus status) throws DataAccessException;
 
     void updateStatus(long loanId, LoanStatus status) throws DataAccessException;
+
+    /** Loans given (or reported) by one lender. */
+    List<Loan> findByLender(long lenderId) throws DataAccessException;
+
+    void assignLender(long loanId, long lenderId) throws DataAccessException;
 }

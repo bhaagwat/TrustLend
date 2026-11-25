@@ -24,23 +24,28 @@ public class JdbcTransactionDao extends AbstractJdbcDao<Transaction> implements 
 
     @Override
     protected Transaction mapRow(ResultSet rs) throws SQLException {
-        return new Transaction(
+        Transaction t = new Transaction(
                 rs.getLong("id"),
                 rs.getLong("vendor_id"),
                 rs.getDouble("amount"),
                 Transaction.Type.valueOf(rs.getString("type")),
                 SqlDates.fromSql(rs.getString("txn_date")),
                 rs.getString("note"));
+        t.setSource(Transaction.Source.valueOf(rs.getString("source")));
+        t.setUploadId(rs.getLong("upload_id"));
+        return t;
     }
 
     @Override
     protected String insertSql() {
-        return "INSERT INTO transactions (vendor_id, amount, type, txn_date, note) VALUES (?, ?, ?, ?, ?)";
+        return "INSERT INTO transactions (vendor_id, amount, type, txn_date, note, source, upload_id) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)";
     }
 
     @Override
     protected String updateSql() {
-        return "UPDATE transactions SET vendor_id = ?, amount = ?, type = ?, txn_date = ?, note = ? WHERE id = ?";
+        return "UPDATE transactions SET vendor_id = ?, amount = ?, type = ?, txn_date = ?, note = ?, source = ?, "
+                + "upload_id = ? WHERE id = ?";
     }
 
     @Override
@@ -50,12 +55,15 @@ public class JdbcTransactionDao extends AbstractJdbcDao<Transaction> implements 
         ps.setString(3, t.getType().name());
         ps.setString(4, SqlDates.toSql(t.getDate()));
         ps.setString(5, t.getNote());
+        ps.setString(6, t.getSource().name());
+        if (t.getUploadId() > 0) ps.setLong(7, t.getUploadId());
+        else ps.setNull(7, java.sql.Types.INTEGER);
     }
 
     @Override
     protected void bindUpdate(PreparedStatement ps, Transaction t) throws SQLException {
         bindInsert(ps, t);
-        ps.setLong(6, t.getId());
+        ps.setLong(8, t.getId());
     }
 
     @Override
@@ -85,6 +93,17 @@ public class JdbcTransactionDao extends AbstractJdbcDao<Transaction> implements 
                 }
                 int[] counts = ps.executeBatch();
                 return counts.length;
+            }
+        });
+    }
+
+    @Override
+    public void setSourceForUpload(long uploadId, Transaction.Source source) throws DataAccessException {
+        db.execute(conn -> {
+            try (PreparedStatement ps = conn.prepareStatement("UPDATE transactions SET source = ? WHERE upload_id = ?")) {
+                ps.setString(1, source.name());
+                ps.setLong(2, uploadId);
+                return ps.executeUpdate();
             }
         });
     }

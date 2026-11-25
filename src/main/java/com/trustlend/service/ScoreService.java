@@ -49,6 +49,7 @@ public class ScoreService {
     private final RepaymentDao repaymentDao;
     private final VouchDao vouchDao;
     private final ScoreHistoryDao historyDao;
+    private final com.trustlend.dao.IncomeDao incomeDao;
 
     private TrustScoreEngine engine;
     private volatile Map<Long, ScoreBreakdown> latest = Map.of();
@@ -56,7 +57,8 @@ public class ScoreService {
 
     public ScoreService(VendorDao vendorDao, TransactionDao transactionDao, LoanDao loanDao,
                         RepaymentDao repaymentDao, VouchDao vouchDao, ScoreHistoryDao historyDao,
-                        EngineSettings settings) {
+                        com.trustlend.dao.IncomeDao incomeDao, EngineSettings settings) {
+        this.incomeDao = incomeDao;
         this.vendorDao = vendorDao;
         this.transactionDao = transactionDao;
         this.loanDao = loanDao;
@@ -80,6 +82,7 @@ public class ScoreService {
         List<Vendor> vendors = vendorDao.findAll();
         Map<Long, List<Transaction>> txns = new HashMap<>();
         for (Transaction t : transactionDao.findAll()) {
+            if (t.getSource() == Transaction.Source.HELD) continue;    // suspicious upload, waiting for HQ
             txns.computeIfAbsent(t.getVendorId(), k -> new ArrayList<>()).add(t);
         }
         Map<Long, List<Loan>> loans = new HashMap<>();
@@ -95,12 +98,23 @@ public class ScoreService {
                 reps.computeIfAbsent(owner, k -> new ArrayList<>()).add(r);
             }
         }
+        Map<Long, Double> verified = new HashMap<>();
+        Map<Long, Double> declared = new HashMap<>();
+        for (com.trustlend.model.IncomeDeclaration d : incomeDao.findAll()) {    // newest first
+            if (d.getStatus() == com.trustlend.model.IncomeDeclaration.Status.VERIFIED) {
+                verified.putIfAbsent(d.getVendorId(), d.getMonthlyAmount());
+            } else if (d.getStatus() == com.trustlend.model.IncomeDeclaration.Status.DECLARED) {
+                declared.putIfAbsent(d.getVendorId(), d.getMonthlyAmount());
+            }
+        }
         List<VendorProfile> profiles = new ArrayList<>();
         for (Vendor v : vendors) {
             profiles.add(new VendorProfile(v,
                     txns.getOrDefault(v.getId(), List.of()),
                     loans.getOrDefault(v.getId(), List.of()),
-                    reps.getOrDefault(v.getId(), List.of())));
+                    reps.getOrDefault(v.getId(), List.of()),
+                    verified.getOrDefault(v.getId(), 0.0),
+                    declared.getOrDefault(v.getId(), 0.0)));
         }
         return profiles;
     }
@@ -276,7 +290,8 @@ public class ScoreService {
 
         List<VendorProfile> modified = new ArrayList<>();
         for (VendorProfile p : profiles) {
-            modified.add(p.vendorId() == vendorId ? new VendorProfile(vendor, txns, loans, reps) : p);
+            modified.add(p.vendorId() == vendorId
+                    ? new VendorProfile(vendor, txns, loans, reps, target.verifiedIncome(), target.declaredIncome()) : p);
         }
         ScoreBreakdown after = engine.computeAll(modified, vouches, today).get(vendorId);
         return new Projection(before.get(vendorId), after, notes);

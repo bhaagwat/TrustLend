@@ -16,4 +16,7 @@ public interface TransactionDao extends GenericDao<Transaction> {
 
     /** Inserts many rows efficiently with JDBC batching. Returns number inserted. */
     int insertBatch(List<Transaction> transactions) throws DataAccessException;
+
+    /** Marks every transaction that came from one uploaded file (e.g. HELD → UPLOADED after HQ approval). */
+    void setSourceForUpload(long uploadId, Transaction.Source source) throws DataAccessException;
 }

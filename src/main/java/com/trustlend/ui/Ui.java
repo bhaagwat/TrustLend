@@ -211,4 +211,18 @@ public final class Ui {
         thread.start();
         return task;
     }
+
+    /** Opens a file with the program the computer normally uses for it (PDF viewer, image viewer…). */
+    public static void openFile(java.nio.file.Path file) {
+        if (file == null) return;
+        Thread t = new Thread(() -> {
+            try {
+                java.awt.Desktop.getDesktop().open(file.toFile());
+            } catch (Exception e) {
+                javafx.application.Platform.runLater(() -> error("Could not open " + file.getFileName(), e));
+            }
+        }, "open-file");
+        t.setDaemon(true);
+        t.start();
+    }
 }

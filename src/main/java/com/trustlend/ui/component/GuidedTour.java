@@ -26,18 +26,20 @@ public class GuidedTour extends VBox {
     /** One stop of the tour. {@code tryThis} may be null. */
     public record Step(Page page, String title, String body, String tryThis) { }
 
-    public static final List<Step> STEPS = List.of(
+    /** TrustLend HQ: the whole platform. */
+    public static final List<Step> HQ_STEPS = List.of(
             new Step(Page.DASHBOARD, "Welcome to TrustLend",
                     "Street vendors rarely have credit histories, so banks turn them away. TrustLend gives each "
                             + "vendor a CIBIL-style trust score from 300 to 900, built from how they actually run "
-                            + "their business. The dashboard summarises the whole portfolio.",
+                            + "their business — and data borrowers and lenders add themselves. You are TrustLend HQ: "
+                            + "the dashboard summarises the whole community.",
                     "For the 2-minute version, press 'Story mode: Meet Sunil' in the sidebar - an animated story of one chai seller earning his first fair loan."),
-            new Step(Page.VENDORS, "Vendors",
-                    "Every vendor in your workspace with their live score and risk band. Search by name, phone, "
-                            + "market or city, and sort any column.",
-                    "Click '+ Add vendor' and create one. A new vendor starts with a low score because there is no history yet."),
+            new Step(Page.VENDORS, "Borrowers",
+                    "Every borrower in the community with their live score and risk band. Search by name, phone, "
+                            + "market, city or TrustLend ID, and sort any column.",
+                    "Double-click Javed Ansari: below his score, 'Evidence behind this score' shows what counts fully, half, or not at all."),
             new Step(Page.VENDORS, "Inside a vendor's profile",
-                    "Double-click any vendor. The profile shows the score gauge, the four factors that make up "
+                    "Double-click any borrower. The profile shows the score gauge, the four factors that make up "
                             + "the score (consistency, repayment, tenure, community vouches), a plain-English "
                             + "'Why this score', the score history, and a 'What if…' simulator.",
                     "Open a low-scoring vendor and drag the 'What if…' sliders - the full engine re-runs and shows the projected score and loan offer. Then press 'Trust certificate'."),
@@ -57,22 +59,66 @@ public class GuidedTour extends VBox {
                     "Record a transaction for a vendor, then go back to the Dashboard and press 'Recalculate scores'."),
             new Step(Page.DATA, "Reports & data",
                     "Export vendors and transactions to CSV, write a portfolio report, bulk-import a ledger "
-                            + "from a CSV file, and back up or restore the whole workspace. The activity log shows "
+                            + "from a CSV file, and back up or restore the whole database. The activity log shows "
                             + "what the app did.",
                     "Press 'Portfolio report (.txt)' to create a printable summary."),
             new Step(Page.SETTINGS, "Tune the model",
                     "Change how much each factor counts, how strongly trust flows through the network, and the "
-                            + "lending policy. Saving recalculates every score instantly. You can also load or clear "
-                            + "demo data here.",
+                            + "lending policy. Saving recalculates every score instantly. You can also reset the "
+                            + "community to the demo data here.",
                     "Drag 'Community vouches (graph)' to the far right and press 'Save & recalculate' - well-connected vendors climb the ranking."),
+            new Step(Page.VERIFY, "Verification queue",
+                    "Lenders report repayments and borrowers confirm them, so most data checks itself. Only the "
+                            + "exceptions come here: repayment reports a borrower disputed, UPI statements that "
+                            + "failed the fraud checks, and income declarations to verify.",
+                    "Approve or reject Sunita's suspicious statement, then open Members to see each lender's credibility."),
             new Step(Page.DASHBOARD, "That's the tour!",
-                    "Everything you do is saved in your own workspace, separate from other accounts on this "
-                            + "computer. The moon and frame buttons in the sidebar switch on dark mode and a "
-                            + "large-text presentation mode for projectors.",
+                    "Now log out and log in as a lender (meena_shg) or a borrower (javed) — or press 'Open on a "
+                            + "phone' to use the borrower app on a real phone. The moon and frame buttons switch on "
+                            + "dark mode and a large-text presentation mode for projectors.",
                     null));
+
+    /** A lender's view. */
+    public static final List<Step> LENDER_STEPS = List.of(
+            new Step(Page.LENDER_HOME, "Your lender desk",
+                    "This is how a self-help group, a moneylender or a wholesaler uses TrustLend. The cards show "
+                            + "your lending and your credibility: how often borrowers confirm what you report.",
+                    "Look at \"Payments you reported, waiting for the borrower to confirm\"."),
+            new Step(Page.VENDORS, "Find a borrower",
+                    "Every borrower in the community with a live trust score, searchable by name, phone, market "
+                            + "or TrustLend ID. Open one to see the evidence behind their score.",
+                    "Double-click Javed Ansari and read \"Evidence behind this score\"."),
+            new Step(Page.LOANS, "Your loans",
+                    "Give loans through TrustLend (priced by the borrower's score), report loans you gave in the "
+                            + "past, and record the repayments you receive.",
+                    "Press \"Report a past loan\": choose a borrower, say they repaid on time. Their score rises "
+                            + "a little now, and fully once they confirm it."),
+            new Step(Page.NETWORK, "The trust network",
+                    "Borrowers vouch for each other. Trust flows along the arrows like PageRank — a vouch from a "
+                            + "trusted member counts more.",
+                    null));
+
+    /** A borrower's view. */
+    public static final List<Step> BORROWER_STEPS = List.of(
+            new Step(Page.MY_SCORE, "Your TrustLend",
+                    "Your score from 300 to 900, what it is made of, the evidence behind it, and how much you can "
+                            + "borrow. Give your TrustLend ID to lenders so they can report your repayments.",
+                    "Read \"How to raise my score\" and try the What-if sliders at the bottom."),
+            new Step(Page.CONFIRM, "Confirmations",
+                    "When a lender reports that you repaid, it counts half until you confirm it — so nobody can "
+                            + "build or ruin your record alone.",
+                    "Press \"Yes, I paid this\" and watch your score go up."),
+            new Step(Page.UPLOAD, "Upload proof",
+                    "No paperwork needed: your UPI history proves your business. Upload a PhonePe, Google Pay or "
+                            + "bank statement; it is checked for tampering first. You can also declare your income.",
+                    "Save a sample statement, upload it, and see the quality check and your new score. Then try the suspicious sample."),
+            new Step(Page.MY_LOANS, "My loans",
+                    "Every loan from every lender, what you have paid, and your repayment plan.",
+                    "Open \"Open on a phone\" in the sidebar to do all of this from a phone."));
 
     private final MainWindow shell;
     private final Runnable onClose;
+    private final List<Step> steps;
     private final Label counter = Ui.label("", "tour-counter");
     private final Label title = Ui.label("", "tour-title");
     private final Label body = Ui.label("", "tour-body");
@@ -81,8 +127,9 @@ public class GuidedTour extends VBox {
     private final Button next = new Button("Next");
     private int index;
 
-    public GuidedTour(MainWindow shell, Runnable onClose) {
+    public GuidedTour(MainWindow shell, List<Step> steps, Runnable onClose) {
         this.shell = shell;
+        this.steps = steps;
         this.onClose = onClose;
         getStyleClass().add("tour-card");
         setSpacing(10);
@@ -103,7 +150,7 @@ public class GuidedTour extends VBox {
         back.setOnAction(e -> show(index - 1));
         next.getStyleClass().add("btn-accent");
         next.setOnAction(e -> {
-            if (index == STEPS.size() - 1) close();
+            if (index == steps.size() - 1) close();
             else show(index + 1);
         });
         HBox top = Ui.row(8, counter, Ui.hSpacer(), close);
@@ -125,18 +172,18 @@ public class GuidedTour extends VBox {
     }
 
     private void show(int i) {
-        index = Math.max(0, Math.min(STEPS.size() - 1, i));
-        Step s = STEPS.get(index);
+        index = Math.max(0, Math.min(steps.size() - 1, i));
+        Step s = steps.get(index);
         shell.navigate(s.page());
         shell.highlightNav(s.page());
-        counter.setText("GUIDED TOUR · " + (index + 1) + " / " + STEPS.size());
+        counter.setText("GUIDED TOUR · " + (index + 1) + " / " + steps.size());
         title.setText(s.title());
         body.setText(s.body());
         tryLabel.setText(s.tryThis() == null ? "" : "Try this:  " + s.tryThis());
         tryLabel.setVisible(s.tryThis() != null);
         tryLabel.setManaged(s.tryThis() != null);
         back.setDisable(index == 0);
-        next.setText(index == STEPS.size() - 1 ? "Finish" : "Next  →");
+        next.setText(index == steps.size() - 1 ? "Finish" : "Next  →");
         next.requestFocus();
     }
 

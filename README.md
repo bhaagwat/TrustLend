@@ -12,7 +12,17 @@ Trust *flows* through the graph (personalised PageRank / EigenTrust): a vouch fr
 trusted vendor raises your score more than a vouch from someone unknown, and vouching for a
 person who later defaults lowers **your** credibility as a voucher.
 
-Built with **Core Java 17+, JavaFX 21, JDBC + SQLite, Maven, java.util.logging and JUnit 5**.
+Nobody has to type in a vendor's data by hand. **Borrowers, lenders and TrustLend HQ each log in with their own
+role**, and the data arrives the way it does in real life:
+
+* a **lender reports** "Ramesh repaid ₹15,000 on time" → Ramesh gets a notification and **confirms** (or disputes) it;
+* a **borrower uploads** a UPI / PhonePe statement (CSV) → it is checked for signs of forgery and turned into sales history;
+* a borrower **declares a salary or business income** with a proof photo → a lender or HQ verifies it;
+* a borrower can do all of this from a **phone browser** by scanning a QR code on the laptop.
+
+Every score has an **evidence panel** that says exactly where each number came from.
+
+Built with **Core Java 17+, JavaFX 21, JDBC + SQLite, Maven, java.util.logging, `com.sun.net.httpserver` and JUnit 5**.
 
 ---
 
@@ -23,13 +33,13 @@ Built with **Core Java 17+, JavaFX 21, JDBC + SQLite, Maven, java.util.logging a
 * **Maven 3.8+** (IntelliJ and Eclipse ship with Maven built in)
 * Internet on the first build (Maven downloads JavaFX, SQLite JDBC and JUnit)
 
-No database server is needed — SQLite is an embedded database. Logins are stored in `data/accounts.db`
-and every account gets its own workspace file `data/workspaces/user-<id>.db`.
+No database server is needed — SQLite is an embedded database. Everyone shares one community database,
+`data/community.db`. It is created with the demo community and demo accounts the first time the app starts.
 
 ### Command line
 ```bash
 mvn clean javafx:run          # build and launch the app
-mvn test                      # run the 35 unit/integration tests
+mvn test                      # run the 46 unit/integration tests
 mvn clean package             # builds target/trustlend-1.0.0-all.jar
 java -jar target/trustlend-1.0.0-all.jar
 ```
@@ -48,43 +58,69 @@ java -jar target/trustlend-1.0.0-all.jar
 1. Install the *Extension Pack for Java*. Open the folder.
 2. In the *Maven* side panel: `trustlend → Plugins → javafx → run`.
 
-### Accounts and demo mode
-TrustLend is multi-user. On the sign-in screen click **"New here? Create an account"**. Every account
-gets its **own private, empty workspace** (a separate SQLite file), so a professor, a teammate and you
-can each use the app on the same computer without seeing each other's vendors or loans.
+### Roles and demo accounts
+The login screen first asks **who you are**: *Borrower*, *Lender* or *TrustLend HQ*. Each role has its own
+sign-in form, its own demo-account buttons (click one to log in instantly) and — for borrowers and lenders —
+**Create an account**.
 
-A new workspace starts empty. From the dashboard's welcome card (or *Settings → Your workspace*):
+| Role | Sees | Can do |
+|---|---|---|
+| **Borrower** (vendor) | *My TrustLend* (own score, factors, tips, evidence, what-if), Confirmations, Upload proof, My loans, Trust Network | Confirm / dispute repayments lenders reported, upload UPI statements, declare income, open the phone page |
+| **Lender** (SHG, wholesaler, MFI, moneylender) | Lender desk, Find a borrower, My loans, Trust Network | Look up a borrower by name, phone or TrustLend ID, lend, report repayments, report a past loan, verify income |
+| **TrustLend HQ** (admin) | Dashboard + graphs, all borrowers, Trust Network, all loans, transactions, **Verification**, Members, Reports, Settings | Resolve disputes, approve or reject suspicious uploads, verify income, reset the demo community |
 
-| Button | What it does |
-|---|---|
-| **Load demo data** | Fills the workspace with a realistic community of 36 vendors across five Delhi markets (≈4,000 transactions, ~50 loans, 50+ vouches, 12 weeks of score history) |
-| **+ Add my first vendor** | Start from zero with your own vendors |
-| **? Take the tour** | A 9-step guided walkthrough that opens each screen, highlights it and suggests something to try. Always available in the sidebar |
-| **Clear workspace…** | Deletes everything in *your* workspace so you can start over (other accounts are untouched) |
+| Username | Password | Who |
+|---|---|---|
+| `admin` | `admin123` | TrustLend HQ — oversees everything |
+| `meena_shg` | `demo123` | Jagriti Mahila Self-Help Group (lender) |
+| `sharma_wholesale` | `demo123` | Sharma Wholesale Traders (lender) |
+| `udaan_mfi` | `demo123` | Udaan Microfinance (lender) |
+| `javed` | `demo123` | Javed Ansari — street food, patchy record (best for showing a score go up) |
+| `ramesh` | `demo123` | Ramesh Kumar — fruit seller, has a repayment waiting to be confirmed |
+| `geeta` | `demo123` | Geeta Rani — clean uploaded statement, declared income |
+| `kamla` | `demo123` | Kamla Bai — has a disputed repayment |
+| `sunita`, `irfan` | `demo123` | Sunita (upload held for review), Irfan (verified salary) |
 
-Model settings (factor weights, lending policy) are shared by all accounts on the computer.
-Delete the whole `data/` folder to remove every account and start completely fresh.
+New accounts join the same community, so a new borrower immediately appears in the lenders' search and on the
+Trust Network. *Settings → Community database → Reset to demo community* (HQ only) puts everything back.
 
-**Upgrading from the first version:** if an old `data/trustlend.db` exists, it is moved into an
-account **`admin` / `admin123`** on the first start, so no data is lost.
+### How the data gets in (no data-entry clerk)
 
-### Demo script for the professor (about 8 minutes)
+| Source | Who enters it | Counts as |
+|---|---|---|
+| Repayment reported by a lender | lender | **pending** (half weight) until the borrower confirms → **confirmed** (full weight). **Disputed** = 0 and HQ decides |
+| Past loan from outside TrustLend | lender (*Report a past loan*) | the same confirm / dispute flow |
+| UPI / sales statement CSV | borrower (desktop or phone) | quality checks 0–100: ≥ 60 accepted, 35–59 **held for HQ review**, < 35 rejected |
+| Income declaration + proof photo | borrower | *declared* +0.05 tenure, *verified* by a lender or HQ +0.15 |
 
-**Before the demo:** create an account, press **Load demo data**, maximise the window. If you will
-use a projector, switch on **presentation mode** (frame icon, bottom of the sidebar).
+Statement checks: too few payments, missing / duplicate transaction IDs, future dates, unreadable rows,
+too many round amounts, the same amount repeated, single days far above normal, very short periods, and
+days that were already uploaded. A lender's **credibility** is `(confirmed + 1) / (confirmed + disputed + 2)`,
+so a lender who keeps reporting things borrowers dispute loses weight.
 
-| # | Show | Say |
-|---|------|-----|
-| 1 | Sidebar → **Story mode: Meet Sunil**. Press → to move through the 5 chapters | "50 million street vendors have no credit history, so banks refuse them and moneylenders charge ~60% a year. Watch one chai seller go from *declined* to a fair loan. Every number is computed live by our scoring engine." |
-| 2 | **Dashboard**: KPIs, score distribution, risk bands | "This is a lender's view of 36 vendors." |
-| 3 | **Vendors** → double-click a low-scoring vendor | "The score is explainable: four factors and plain-English reasons." |
-| 4 | On the profile: drag the **What if…** sliders, then *Best case* and *Worst case* | "The whole engine, including trust propagation, re-runs on a hypothetical copy. Nothing is saved." |
-| 5 | **₹ New loan** → *Check eligibility* | Approved / lower amount / declined decision card with reasons, terms and the week-by-week repayment schedule. |
-| 6 | **Loans** → select a loan → **Mark defaulted** | The *ripple effect* dialog: the borrower's score drops, so do the scores of everyone who vouched. *Show on the network* pulses them red on the graph. |
-| 7 | **Trust Network**: hover a vendor, then *Find strongest trust path* | "Vouches form a weighted directed graph; trust flows like PageRank (Dijkstra for the path)." |
-| 8 | Profile → **Trust certificate** → *Print / Save as PDF* | A one-page certificate the vendor could show a lender. |
-| 9 | Code: DAO + JDBC transactions, `TrustScoreEngine`, `TrustGraph<N>`, `PngWriter`; run `mvn test` | Map to the syllabus (table below). |
-| 10 | Let the professor **create their own account** | Their workspace starts empty and private; *Take the tour* explains everything. |
+### Phone page
+Log in as a borrower → **Open on a phone**. A QR code appears; scan it with a phone on the **same Wi-Fi**.
+The phone shows the score, pending confirmations (Yes, I paid / This is wrong) and a statement upload with
+*Try a sample* / *Try a fake one* buttons. Changes appear on the laptop instantly. On Windows, allow Java
+through the firewall when asked (private networks). If the phone can't connect, the same page works on the
+laptop's own browser at `http://localhost:8765`.
+
+### Demo script for the professor (about 10 minutes)
+
+**Before the demo:** maximise the window; for a projector switch on **presentation mode** (bottom of the sidebar).
+
+| # | Log in as | Show | Say |
+|---|---|---|---|
+| 1 | (any) | Sidebar → **Story mode: Meet Sunil** | "50 million street vendors have no credit history. Watch one chai seller go from *declined* to a fair loan." |
+| 2 | `admin` | **Dashboard** graphs, **Trust Network** | "HQ oversees the whole community: 36 vendors, three lenders." |
+| 3 | `sharma_wholesale` | Lender desk → *Find a borrower* → Ramesh → report a repayment | "The lender logs that he was paid. No clerk." |
+| 4 | `ramesh` (or the phone page) | **Confirmations** → *Yes, I paid* | "The borrower confirms, and only then does it count fully. The score goes up." |
+| 5 | `javed` | **Upload proof** → save the sample → upload it | Quality 100/100, Javed's score jumps (≈ 580 → 630). Then upload the *suspicious* sample: held for review. |
+| 6 | `javed` | **Open on a phone**, scan the QR | Same thing from a phone — this is how a chaiwala would actually use it. |
+| 7 | `admin` | **Verification** | Dispute (Kamla), held upload (Sunita), declared income (Geeta): approve / reject. |
+| 8 | any vendor profile | **Evidence panel**, **What if…** sliders, **New loan** decision card, **Trust certificate** | "Every number is explainable." |
+| 9 | `admin` | Loans → **Mark defaulted** → ripple effect on the network | "Vouching has consequences." |
+| 10 | — | Code + `mvn test` | Syllabus table below. |
 
 Keyboard in story mode: → / Space next, ← back, Esc exit.
 
@@ -107,20 +143,17 @@ Keyboard in story mode: → / Space next, ← back, Esc exit.
 Every data-entry dialog validates input **before closing**: the offending field turns red and the
 error appears inline (custom `ValidationException` carries the field name).
 
-### New in this version
-* **Story mode — "Meet Sunil"**: a full-screen, animated 5-chapter story (no credit history → steady sales → vouches →
-  first loan repaid → approved), computed by the real engine on a small self-contained community (`StoryScenario`).
-  Works even in an empty workspace and never touches the database.
-* **Loan decision card**: applying for a loan gives an instant APPROVED / APPROVED · LOWER AMOUNT / DECLINED card with
-  the reasons, terms (rate, weekly instalment, total interest) and the full repayment schedule (`LoanService.decide`).
-* **What-if simulator** on every vendor profile: sliders for more weeks of daily sales, on-time instalments and new
-  vouches, plus a "defaults" switch; shows the projected score and loan offer (`ScoreService.project`).
-* **Trust certificate**: a printable one-page certificate; save as PNG (own encoder, `io/PngWriter`) or print /
-  "Microsoft Print to PDF" (`javafx.print.PrinterJob`).
-* **Default ripple**: after *Mark defaulted*, a dialog shows how the borrower and their vouchers lost trust, and the
-  network view pulses the affected vendors.
-* **Polish**: line icons drawn with `SVGPath`, animated KPI counters, auto-fit + hover highlighting on the network,
-  **dark mode** (`styles/dark.css`) and **presentation mode** (`styles/presentation.css`), remembered with `java.util.prefs`.
+### New in version 5 — automated data entry
+* **Three roles** with one shared community DB: borrower, lender, TrustLend HQ; sign-up for borrowers and lenders.
+* **Lender reports → borrower confirms**: weighted repayments (pending ½, confirmed 1, disputed 0), lender credibility, HQ dispute resolution.
+* **Statement upload** with fraud checks and a quality rating (`io/StatementImporter`); suspicious files are held for HQ.
+* **Income declarations** with proof files, verified by a lender or HQ.
+* **Evidence panel** on every score; **TrustLend ID** (`TL-1001`) for looking people up.
+* **Phone page** served by the app itself (`web/PhoneServer`) with a QR code drawn by our own encoder (`util/QrCode`).
+
+### Earlier versions
+* Story mode "Meet Sunil", loan decision card, what-if simulator, trust certificate, default ripple, dark and
+  presentation modes, splash screen, live trust-flow particles, market heat map.
 
 ### Vouch “what-if” simulator
 In *Add vouch* press **Preview impact** to see how the vouchee’s score would change
@@ -177,7 +210,9 @@ Interest = `base (18%) + (650 − score) × 0.02`, clamped to 12–30% p.a.
  DAO interfaces (dao)  ◄── JDBC implementations (dao.jdbc, AbstractJdbcDao template)
      │
      ▼
- DatabaseManager (db) ── JDBC ── SQLite: data/accounts.db + one data/workspaces/user-<id>.db per account
+ DatabaseManager (db) ── JDBC ── SQLite: data/community.db (shared by all roles)
+
+ PhoneServer (web) ── com.sun.net.httpserver ── phone browser (JSON API + one HTML page)
 ```
 
 ```
@@ -193,20 +228,23 @@ src/main/java/com/trustlend
 ├── graph/                     TrustGraph<N>: propagation, BFS, Dijkstra
 ├── engine/  engine/factor/    TrustScoreEngine, ScoringFactor strategy + 3 factors
 ├── service/                   Vendor/Loan/Vouch/Transaction/Score/Auth/Analytics services,
-│                              DemoDataSeeder, AppContext (per-workspace composition root),
-│                              AccountManager (accounts DB + one workspace DB per user)
-├── io/                        CsvExporter<T>, CsvTransactionImporter, BackupService, ReportWriter
-├── util/                      Validators, Formats, PasswordHasher
+│                              CommunityService (reports, confirmations, uploads, income, HQ queue, evidence),
+│                              DemoDataSeeder, DemoAccounts, AppContext (composition root)
+├── io/                        CsvExporter<T>, CsvTransactionImporter, StatementImporter, CsvUtil, BackupService, ReportWriter
+├── util/                      Validators, Formats, PasswordHasher, QrCode
+├── web/                       PhoneServer, PhonePage
 └── ui/                        MainWindow, LoginView, Ui helpers, views, dialogs, components
 src/main/resources
-├── config.properties  logging.properties  db/schema.sql  db/accounts.sql  styles/app.css
-src/test/java                 35 JUnit 5 tests (graph, engine, DAO+SQLite, utilities, file I/O, PNG, accounts, story/what-if/loan decisions)
+├── config.properties  logging.properties  db/schema.sql  styles/app.css dark.css presentation.css
+src/test/java                 46 JUnit 5 tests (graph, engine, DAO+SQLite, utilities, file I/O, PNG, QR, statement checks,
+                              community flows, story/what-if/loan decisions)
 ```
 
 ### Database schema
-Accounts database: `users`. Each workspace database: `vendors`, `transactions`, `loans`, `repayments`, `vouches`, `score_history` —
+One database: `users` (role, linked vendor, organisation), `vendors`, `transactions` (source: recorded / uploaded / held),
+`loans` (lender, origin), `repayments` (status, reported by), `uploads`, `incomes`, `vouches`, `score_history` —
 with foreign keys (`ON DELETE CASCADE`), `CHECK` constraints (positive amounts, strength 1–5,
-no self-vouch), `UNIQUE` constraints (phone, voucher+vouchee) and indexes. See `src/main/resources/db/schema.sql` and `db/accounts.sql`.
+no self-vouch), `UNIQUE` constraints (phone, voucher+vouchee) and indexes. See `src/main/resources/db/schema.sql`.
 
 ---
 
@@ -282,14 +320,25 @@ no self-vouch), `UNIQUE` constraints (phone, voucher+vouchee) and indexes. See `
 * `TextFormatter` input masks, `FilteredList`/`SortedList` live filtering, bindings
 * JUnit 5 test suite incl. DAO integration tests on in-memory SQLite
 * Runnable fat jar via the Maven Shade plugin
+* **Networking**: an embedded HTTP server (`com.sun.net.httpserver`) with a small JSON API, token sessions and
+  `Platform.runLater` to update the desktop UI from server threads
+* **QR codes from scratch**: Reed–Solomon error correction over GF(256), masking and format bits (`util/QrCode`)
+* Fraud heuristics on uploaded statements (median, duplicates, round-number ratio)
+* Role-based access control across the UI and the phone API
 
 ---
 
 ## 6. Sample data files
-`samples/transactions-import-sample.csv` shows the CSV import format
-(use a phone number that exists in your database — copy one from the Vendors screen).
+* `samples/upi-statement-good.csv` — 12 weeks of normal UPI payments (uploads as quality 100, accepted).
+* `samples/upi-statement-suspicious.csv` — 4 weeks of round, repeated amounts (held for HQ review).
+  The *Upload proof* screen can also save fresh copies of both.
+* `samples/transactions-import-sample.csv` — the HQ CSV import format
+  (use a phone number that exists in your database — copy one from the Borrowers screen).
 
 ## 7. Troubleshooting
 * **“JavaFX runtime components are missing”** – run through Maven (`mvn javafx:run`) or the fat jar / `Launcher` class, not `TrustLendApp` directly from a plain classpath.
 * **Port/lock errors on the DB** – close other running copies of the app; SQLite allows one writer.
-* **Reset everything** – close the app and delete the `data/` folder.
+* **Reset everything** – HQ → *Settings → Reset to demo community*, or close the app and delete the `data/` folder.
+* **Phone can't open the page** – both devices on the same Wi-Fi (not a guest network or mobile hotspot isolation),
+  allow Java in Windows Firewall for private networks, or try `http://localhost:8765` on the laptop.
+* **Old accounts are gone** – version 5 uses a new shared database (`data/community.db`); use the demo accounts or sign up again.

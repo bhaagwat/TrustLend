@@ -6,8 +6,6 @@ import com.trustlend.model.Vendor;
 import com.trustlend.service.AppContext;
 import com.trustlend.ui.MainWindow;
 import com.trustlend.ui.Ui;
-import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.HPos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -37,7 +35,6 @@ public class SettingsView extends BaseView {
     private final Label minScoreLabel = Ui.label("", "strong");
     private final VBox about = new VBox(6);
     private final Label workspaceInfo = Ui.label("", "strong");
-    private final BooleanProperty workspaceEmpty = new SimpleBooleanProperty(true);
 
     public SettingsView(AppContext ctx, MainWindow shell) {
         super(ctx, shell);
@@ -86,21 +83,16 @@ public class SettingsView extends BaseView {
 
         VBox aboutCard = Ui.titledCard("About this installation", about);
 
-        Button demo = new Button("Load demo data");
-        demo.getStyleClass().add("btn-accent");
-        demo.setOnAction(e -> shell.loadDemoData());
-        demo.disableProperty().bind(workspaceEmpty.not());
-        Button clear = new Button("Clear workspace…");
-        clear.getStyleClass().add("btn-danger");
-        clear.setOnAction(e -> shell.clearWorkspace());
-        clear.disableProperty().bind(workspaceEmpty);
+        Button reset = new Button("Reset to demo community…");
+        reset.getStyleClass().add("btn-danger");
+        reset.setOnAction(e -> shell.resetCommunity());
         Button tour = new Button("?  Take the tour");
         tour.getStyleClass().add("btn-ghost");
         tour.setOnAction(e -> shell.startTour());
-        VBox workspaceCard = Ui.titledCard("Your workspace", workspaceInfo,
-                note("Each account has its own private database. Demo data can be loaded into an empty workspace; "
-                        + "clear it to start again from zero. Other accounts are never affected."),
-                Ui.row(10, demo, clear, tour));
+        VBox workspaceCard = Ui.titledCard("Community database", workspaceInfo,
+                note("Borrowers, lenders and HQ share one community database. Resetting deletes every borrower and "
+                        + "lender (HQ accounts stay) and reloads the demo community with its demo logins."),
+                Ui.row(10, reset, tour));
 
         HBox top = new HBox(16, weightCard, graphCard);
         HBox bottom = new HBox(16, loanCard, aboutCard);
@@ -148,10 +140,10 @@ public class SettingsView extends BaseView {
         loadFrom(ctx.scores().getSettings(), c.getDouble("loan.interest.base"), c.getInt("loan.min.score"));
         try {
             long vendors = ctx.vendors().findAll().size();
-            workspaceEmpty.set(vendors == 0);
-            workspaceInfo.setText(vendors == 0 ? "Empty - no vendors yet" : vendors + " vendor(s) in your workspace");
+            workspaceInfo.setText(vendors + " borrower(s) · " + ctx.community().lenders().size() + " lender(s) · "
+                    + ctx.community().members().size() + " accounts in total");
         } catch (Exception e) {
-            workspaceInfo.setText("Could not read workspace: " + e.getMessage());
+            workspaceInfo.setText("Could not read the database: " + e.getMessage());
         }
         about.getChildren().setAll(
                 info("Java runtime", System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ")"),

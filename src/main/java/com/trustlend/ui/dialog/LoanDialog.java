@@ -60,6 +60,7 @@ public class LoanDialog extends Dialog<Loan> {
     private final StackPane pages = new StackPane();
     private final VBox formPage;
     private LoanService.Decision decision;
+    private com.trustlend.model.User lender;
 
     public LoanDialog(AppContext ctx, List<Vendor> vendors, Vendor preselected) {
         this.ctx = ctx;
@@ -113,6 +114,15 @@ public class LoanDialog extends Dialog<Loan> {
         }
         updateOffer();
         setResultConverter(b -> null);
+    }
+
+    /** The loan is given by this lender (ignored unless the user is a lender; HQ lends from the community fund). */
+    public LoanDialog asLender(com.trustlend.model.User user) {
+        if (user != null && user.isLender()) {
+            lender = user;
+            setTitle("Loan application — " + user.getDisplayName());
+        }
+        return this;
     }
 
     private void updateOffer() {
@@ -242,6 +252,9 @@ public class LoanDialog extends Dialog<Loan> {
         FadeTransition f = new FadeTransition(Duration.millis(300), stamp);
         f.setToValue(1);
         new ParallelTransition(s, f).play();
+        if (d.verdict() != LoanService.Verdict.DECLINED) {
+            javafx.application.Platform.runLater(() -> com.trustlend.ui.component.Confetti.burst(pages));
+        }
     }
 
     private TableView<LoanService.Instalment> scheduleTable(LoanService.Decision d) {
@@ -262,8 +275,11 @@ public class LoanDialog extends Dialog<Loan> {
 
     private void disburse() {
         try {
-            Loan loan = ctx.loans().issueLoan(decision.vendor().getId(), decision.approvedAmount(),
-                    decision.tenureWeeks(), decision.issueDate());
+            Loan loan = lender != null
+                    ? ctx.community().lendAsLender(lender, decision.vendor().getId(), decision.approvedAmount(),
+                            decision.tenureWeeks(), decision.issueDate())
+                    : ctx.loans().issueLoan(decision.vendor().getId(), decision.approvedAmount(),
+                            decision.tenureWeeks(), decision.issueDate());
             setResult(loan);
             close();
         } catch (Exception e) {

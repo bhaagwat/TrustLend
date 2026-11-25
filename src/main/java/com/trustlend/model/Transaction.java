@@ -25,6 +25,19 @@ public class Transaction implements Identifiable, Serializable {
     private Type type;
     private LocalDate date;
     private String note;
+    private Source source = Source.RECORDED;
+    private long uploadId;
+
+    /** Where a transaction came from. HELD rows (from a suspicious file) are not scored until HQ approves them. */
+    public enum Source {
+        RECORDED("Recorded"), UPLOADED("From statement"), HELD("Held for review");
+
+        private final String label;
+
+        Source(String label) { this.label = label; }
+
+        public String getLabel() { return label; }
+    }
 
     public Transaction(long id, long vendorId, double amount, Type type, LocalDate date, String note) {
         this.id = id;
@@ -52,6 +65,10 @@ public class Transaction implements Identifiable, Serializable {
     public void setType(Type type) { this.type = type; }
     public void setDate(LocalDate date) { this.date = date; }
     public void setNote(String note) { this.note = note; }
+    public Source getSource() { return source; }
+    public void setSource(Source source) { this.source = source; }
+    public long getUploadId() { return uploadId; }
+    public void setUploadId(long uploadId) { this.uploadId = uploadId; }
 
     /** Counts towards business activity (excludes money the platform itself lent). */
     public boolean isBusinessActivity() {

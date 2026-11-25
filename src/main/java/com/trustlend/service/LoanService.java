@@ -184,6 +184,12 @@ public class LoanService {
      */
     public Loan issueLoan(long vendorId, double amount, int tenureWeeks, LocalDate issueDate)
             throws ValidationException, LoanEligibilityException, DataAccessException, EntityNotFoundException {
+        return issueLoan(vendorId, amount, tenureWeeks, issueDate, 0);
+    }
+
+    /** As above, given by a particular lender ({@code lenderId} 0 = the TrustLend community fund). */
+    public Loan issueLoan(long vendorId, double amount, int tenureWeeks, LocalDate issueDate, long lenderId)
+            throws ValidationException, LoanEligibilityException, DataAccessException, EntityNotFoundException {
 
         Vendor vendor = vendorDao.findById(vendorId).orElseThrow(() -> new EntityNotFoundException("Vendor", vendorId));
         if (!vendor.isActive()) {
@@ -204,6 +210,7 @@ public class LoanService {
 
         Loan loan = new Loan(0, vendorId, amount, offer.interestRate(), tenureWeeks, issueDate,
                 issueDate.plusWeeks(tenureWeeks), LoanStatus.ACTIVE, offer.score());
+        loan.setLenderId(lenderId);
 
         db.transaction(() -> {
             loanDao.save(loan);
@@ -217,6 +224,15 @@ public class LoanService {
 
     /** Records an instalment, then closes the loan if it is fully paid (one transaction). */
     public Repayment recordRepayment(long loanId, double amount, LocalDate paidDate)
+            throws ValidationException, DataAccessException, EntityNotFoundException {
+        return recordRepayment(loanId, amount, paidDate, 0);
+    }
+
+    /**
+     * Records an instalment. Recorded by HQ ({@code reportedBy} 0) it is confirmed at once; reported by a
+     * lender it stays PENDING (half weight) until the borrower confirms it.
+     */
+    public Repayment recordRepayment(long loanId, double amount, LocalDate paidDate, long reportedBy)
             throws ValidationException, DataAccessException, EntityNotFoundException {
 
         Loan loan = loanDao.findById(loanId).orElseThrow(() -> new EntityNotFoundException("Loan", loanId));
@@ -237,6 +253,10 @@ public class LoanService {
         int instalmentNo = repaymentDao.findByLoan(loanId).size() + 1;
         LocalDate due = loan.instalmentDueDate(Math.min(instalmentNo, loan.getTenureWeeks()));
         Repayment repayment = Repayment.of(loanId, amount, due, paidDate);
+        if (reportedBy > 0) {
+            repayment.setReportedBy(reportedBy);
+            repayment.setStatus(Repayment.Verification.PENDING);
+        }
 
         db.transaction(() -> {
             repaymentDao.save(repayment);
@@ -276,8 +296,21 @@ public class LoanService {
         for (Loan l : loans) {
             l.setAmountRepaid(totals.getOrDefault(l.getId(), 0.0));
             l.setVendorName(names.getOrDefault(l.getVendorId(), "#" + l.getVendorId()));
+            if (l.getLenderId() > 0 && lenderNames != null) l.setLenderName(lenderNames.apply(l.getLenderId()));
         }
         return loans;
+    }
+
+    /** Loans given or reported by one lender. */
+    public List<Loan> loansBy(long lenderId) throws DataAccessException {
+        return listLoans().stream().filter(l -> l.getLenderId() == lenderId).toList();
+    }
+
+    private java.util.function.LongFunction<String> lenderNames;
+
+    /** How to turn a lender's user id into a display name (set by {@link AppContext}). */
+    public void setLenderNames(java.util.function.LongFunction<String> lenderNames) {
+        this.lenderNames = lenderNames;
     }
 
     public List<Loan> loansOf(long vendorId) throws DataAccessException {
